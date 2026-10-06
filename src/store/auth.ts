@@ -55,15 +55,20 @@ export const useAuth = create<AuthState>()(
       name: "kachi-admin-auth",
       storage: createJSONStorage(() => localStorage),
       partialize: ({ token, expiresAt, user }) => ({ token, expiresAt, user }),
-      onRehydrateStorage: () => (state) => {
-        if (state?.expiresAt && new Date(state.expiresAt).getTime() <= Date.now()) {
-          state.clear("Your session expired. Sign in again.");
-        }
-        useAuth.setState({ hydrated: true });
-      },
+      // Rehydrated by <Providers> after mount, so the first client render matches the server's.
+      skipHydration: true,
     },
   ),
 );
+
+// Runs once the saved session has been read. (Not onRehydrateStorage: that fires while
+// create() is still running, before `useAuth` exists.) `persist` is missing on the server.
+useAuth.persist?.onFinishHydration((state) => {
+  if (state.expiresAt && new Date(state.expiresAt).getTime() <= Date.now()) {
+    state.clear("Your session expired. Sign in again.");
+  }
+  useAuth.setState({ hydrated: true });
+});
 
 export function needsTwoFactorSetup(user: User): boolean {
   return Boolean(user.two_factor?.required && !user.two_factor.enabled);

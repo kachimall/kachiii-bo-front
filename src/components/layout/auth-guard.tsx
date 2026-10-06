@@ -1,8 +1,9 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { LoadingState } from "@/components/common/states";
+import { Button } from "@/components/ui/button";
 import { me, refresh, logout } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api/client";
 import { isStaff, useAuth } from "@/store/auth";
@@ -23,6 +24,8 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   const token = useAuth((s) => s.token);
   const user = useAuth((s) => s.user);
   const twoFactorSetupRequired = useAuth((s) => s.twoFactorSetupRequired);
+  const [checkFailed, setCheckFailed] = useState<string>();
+  const [attempt, setAttempt] = useState(0);
 
   // Where to go when the session is missing or incomplete.
   useEffect(() => {
@@ -42,18 +45,23 @@ export function AuthGuard({ children }: { children: ReactNode }) {
       (fresh) => {
         if (cancelled) return;
         if (!isStaff(fresh)) return void signOutNotStaff();
+        setCheckFailed(undefined);
         useAuth.getState().setUser(fresh);
       },
       (error: unknown) => {
-        if (!cancelled && error instanceof ApiError && error.status === 403 && !error.needsTwoFactorSetup) {
+        if (cancelled) return;
+        if (error instanceof ApiError && error.status === 403 && !error.needsTwoFactorSetup) {
           signOutNotStaff();
+        } else if (!(error instanceof ApiError) || error.status !== 401) {
+          // Network or server trouble: without the account we can't render the app, so say so.
+          setCheckFailed(error instanceof Error ? error.message : "Couldn’t reach the KACHI API.");
         }
       },
     );
     return () => {
       cancelled = true;
     };
-  }, [hydrated, token]);
+  }, [hydrated, token, attempt]);
 
   // Rotate the token before it expires.
   useEffect(() => {
@@ -71,6 +79,16 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     const timer = setInterval(check, CHECK_EVERY_MS);
     return () => clearInterval(timer);
   }, [token]);
+
+  if (checkFailed && !user) {
+    return (
+      <div className="mx-auto flex max-w-md flex-col items-start gap-3 px-6 py-16">
+        <p className="font-heading text-xl font-bold">Couldn’t check your session</p>
+        <p className="text-sm text-on-surface-variant">{checkFailed} Make sure the KACHI backend is running.</p>
+        <Button onClick={() => setAttempt((n) => n + 1)}>Try again</Button>
+      </div>
+    );
+  }
 
   if (!hydrated || !token || twoFactorSetupRequired || !user || !isStaff(user)) {
     return <LoadingState label="Checking your session…" />;
