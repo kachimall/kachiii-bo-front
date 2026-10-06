@@ -90,6 +90,14 @@ export type ShipmentStatus = "pending" | "processing" | "ready" | "shipped" | "d
 export type CourierStatus = "picked_up" | "in_transit" | "out_for_delivery" | "delivery_failed" | "delivered" | "returned";
 export type CodStatus = "pending" | "collected" | "not_collected";
 export type Fulfiller = "vendor" | "provider";
+/** "pending" and "processing" until paid back; "failed" waits for staff to try again. */
+export type RefundStatus = "pending" | "processing" | "succeeded" | "failed";
+/** Who bears a refund in the payouts. */
+export type RefundCharge = "vendor" | "kachi";
+/** "escalated": KACHI decides (the store did not answer in time, or the buyer disputed its rejection). */
+export type ReturnStatus = "requested" | "escalated" | "approved" | "rejected" | "received" | "withdrawn";
+export type ReturnDecision = "approved" | "rejected";
+export type ReturnReason = "damaged" | "defective" | "wrong_item" | "not_as_described" | "missing_parts" | "other";
 export type VendorDocumentType = "trade_license" | "vat_certificate" | "other";
 export type VoucherFunder = "kachi" | "vendor";
 export type VoucherType = "fixed" | "percentage";
@@ -307,7 +315,11 @@ export interface Shipment {
   ready_at: IsoDate | null;
   shipped_at: IsoDate | null;
   delivered_at: IsoDate | null;
+  /** Until when its items can be returned; null until delivered. */
+  return_by: IsoDate | null;
+  /** Brought back undelivered by the courier, and when its sender confirmed it is back. */
   returned_at: IsoDate | null;
+  received_back_at: IsoDate | null;
   cancelled_at: IsoDate | null;
   /** The courier's tracking number, once booked. */
   waybill_number: string | null;
@@ -385,6 +397,8 @@ export interface Purchase {
   } | null;
   orders: VendorOrder[];
   packages: Shipment[];
+  /** Money owed back to the buyer; loaded on the order detail. */
+  refunds?: Refund[];
   placed_at: IsoDate | null;
   paid_at: IsoDate | null;
   cancelled_at: IsoDate | null;
@@ -394,6 +408,78 @@ export interface Purchase {
   payment_failures?: number;
   flagged_at?: IsoDate | null;
   payments?: PaymentRecord[];
+}
+
+export interface Refund {
+  id: Ulid;
+  amount: Money;
+  reason: string;
+  status: RefundStatus;
+  refunded_at: IsoDate | null;
+  created_at: IsoDate | null;
+  order?: { id: Ulid; number: string };
+  /** The store's order number, when one store's order is refunded. */
+  store_order?: string | null;
+  /** null when nothing was earned yet. */
+  charged_to?: RefundCharge | null;
+  reference?: string | null;
+  attempts?: number;
+  failure_reason?: string | null;
+  failed_at?: IsoDate | null;
+}
+
+export interface ReturnAnswer {
+  decision: ReturnDecision;
+  remarks: string | null;
+  decided_at: IsoDate | null;
+}
+
+export interface ReturnRequest {
+  id: Ulid;
+  number: string;
+  status: ReturnStatus;
+  order: { id: Ulid; number: string };
+  store_order: { id: Ulid; number: string; store_name: string };
+  /** The package the items came in. */
+  package_id: Ulid;
+  reason: ReturnReason;
+  details: string | null;
+  /** Portal paths of the buyer's photos (WebP); they need the bearer token. */
+  photos: string[];
+  items: {
+    item_id: Ulid;
+    product_name: string;
+    sku: string;
+    options: Record<string, string>;
+    thumbnail_url: string | null;
+    quantity: number;
+    refund_amount: Money;
+  }[];
+  /** What the buyer gets back once the items are back; final once received. */
+  refund_amount: Money;
+  /** The store answers by then, or KACHI decides. */
+  reply_by: IsoDate | null;
+  store_answer: ReturnAnswer | null;
+  escalated_at: IsoDate | null;
+  /** The buyer's reason for asking KACHI to review the store's rejection. */
+  dispute_reason: string | null;
+  dispute_by: IsoDate | null;
+  kachi_decision: ReturnAnswer | null;
+  /** The courier's pickup, once booked. */
+  pickup: {
+    waybill_number: string;
+    booked_at: IsoDate | null;
+    cancelled_at: IsoDate | null;
+    courier_status: CourierStatus | null;
+    courier_status_at: IsoDate | null;
+  } | null;
+  received_at: IsoDate | null;
+  /** Whether the items went back on sale; null until received. */
+  restocked: boolean | null;
+  withdrawn_at: IsoDate | null;
+  created_at: IsoDate | null;
+  buyer?: { id: Ulid; name: string; email: string };
+  decided_by?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -557,4 +643,17 @@ export interface Settings {
   free_delivery_min_total: Money | null;
   /** Refused cash-on-delivery parcels before cash on delivery switches off for a buyer (1–10). */
   cod_refusal_limit: number;
+  /** Days after delivery a buyer may ask to return items (1–90). */
+  return_days: number;
+  /** Days the store has to answer a return request before KACHI decides it (1–14). */
+  return_reply_days: number;
+  /** Days the buyer has to ask KACHI to review the store's rejection (1–30). */
+  return_dispute_days: number;
+}
+
+/** GET /admin/commission-rates: the default, and the categories and vendors with their own rate. */
+export interface CommissionRates {
+  default: string;
+  categories: { id: Ulid; name: string; rate: string }[];
+  vendors: { id: Ulid; business_name: string; store: string | null; rate: string }[];
 }

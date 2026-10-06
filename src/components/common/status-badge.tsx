@@ -20,6 +20,7 @@ const STATUS_TONES: Record<string, Tone> = {
   delivered: "success",
   ready: "success",
   collected: "success",
+  received: "success",
   picked_up: "info",
   in_transit: "info",
   out_for_delivery: "info",
@@ -27,6 +28,8 @@ const STATUS_TONES: Record<string, Tone> = {
   returned: "danger",
   not_collected: "danger",
   pending: "warning",
+  requested: "warning",
+  escalated: "warning",
   pending_review: "warning",
   awaiting_consent: "warning",
   scheduled: "info",
@@ -47,6 +50,7 @@ const STATUS_TONES: Record<string, Tone> = {
   inactive: "neutral",
   archived: "neutral",
   ended: "neutral",
+  withdrawn: "neutral",
   off: "neutral",
 };
 

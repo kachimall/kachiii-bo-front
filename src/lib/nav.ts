@@ -7,6 +7,9 @@ import {
   type LucideIcon,
   PackageIcon,
   PackageXIcon,
+  PercentIcon,
+  ReceiptIcon,
+  Undo2Icon,
   SettingsIcon,
   ShieldCheckIcon,
   ShoppingCartIcon,
@@ -49,7 +52,15 @@ export const NAV: NavGroup[] = [
     label: "Sales",
     items: [
       { href: "/orders", label: "Orders", icon: ShoppingCartIcon, permission: "orders.view" },
+      { href: "/returns", label: "Returns", icon: Undo2Icon, permission: "orders.view" },
       { href: "/vouchers", label: "Vouchers", icon: BadgePercentIcon, permission: "promotions.view" },
+    ],
+  },
+  {
+    label: "Finance",
+    items: [
+      { href: "/refunds", label: "Refunds", icon: ReceiptIcon, permission: "payments.view" },
+      { href: "/commission-rates", label: "Commission", icon: PercentIcon, permission: "commissions.view" },
     ],
   },
   {

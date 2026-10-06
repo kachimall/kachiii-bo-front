@@ -146,6 +146,15 @@ export async function apiList<T>(path: string, query?: Query): Promise<Paginated
   return apiWithMeta<T[], PageMeta>(path, { query });
 }
 
+/** Downloads a private file with the bearer token, e.g. to show an image through an object URL. */
+export async function fetchBlob(path: string, signal?: AbortSignal): Promise<Blob> {
+  const response = await send(path, { signal });
+  if (!response.ok) {
+    await parse(response, {});
+  }
+  return response.blob();
+}
+
 /** Downloads a file (private documents need the bearer token) and opens it in a new tab. */
 export async function openFile(path: string): Promise<void> {
   // Open the tab first so popup blockers treat it as user-initiated.

@@ -26,6 +26,9 @@ const FIELDS = [
   "cash_on_delivery_enabled",
   "cash_on_delivery_max_total",
   "cod_refusal_limit",
+  "return_days",
+  "return_reply_days",
+  "return_dispute_days",
   "delivery_fee_mode",
   "delivery_flat_fee",
   "free_delivery_min_total",
@@ -38,6 +41,9 @@ function toForm(s: Settings): SettingsValues {
     cash_on_delivery_enabled: Boolean(s.cash_on_delivery_enabled),
     cash_on_delivery_max_total: String(s.cash_on_delivery_max_total),
     cod_refusal_limit: String(s.cod_refusal_limit ?? 2),
+    return_days: String(s.return_days ?? 7),
+    return_reply_days: String(s.return_reply_days ?? 2),
+    return_dispute_days: String(s.return_dispute_days ?? 7),
     delivery_fee_mode: s.delivery_fee_mode,
     delivery_flat_fee: String(s.delivery_flat_fee),
     free_delivery_min_total: s.free_delivery_min_total === null ? "" : String(s.free_delivery_min_total),
@@ -53,7 +59,7 @@ export function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="Settings" description="Order rules, cash on delivery and delivery fees for the whole marketplace." />
+      <PageHeader title="Settings" description="Order rules, returns, cash on delivery and delivery fees for the whole marketplace." />
       <AsyncContent data={data} error={error} loading={loading} onRetry={reload}>
         {(settings) => <SettingsForm settings={settings} readOnly={!can("settings.manage")} onSaved={mutate} />}
       </AsyncContent>
@@ -75,6 +81,9 @@ function SettingsForm({ settings, readOnly, onSaved }: { settings: Settings; rea
         cash_on_delivery_enabled: v.cash_on_delivery_enabled,
         cash_on_delivery_max_total: Number(v.cash_on_delivery_max_total),
         cod_refusal_limit: Number(v.cod_refusal_limit),
+        return_days: Number(v.return_days),
+        return_reply_days: Number(v.return_reply_days),
+        return_dispute_days: Number(v.return_dispute_days),
         delivery_fee_mode: v.delivery_fee_mode,
         delivery_flat_fee: Number(v.delivery_flat_fee),
         free_delivery_min_total: v.free_delivery_min_total === "" ? null : Number(v.free_delivery_min_total),
@@ -138,6 +147,35 @@ function SettingsForm({ settings, readOnly, onSaved }: { settings: Settings; rea
               hint="After this many parcels refused at the door, cash on delivery switches off for that buyer (1–10)."
             >
               <Input id="st-cod-refusals" inputMode="numeric" aria-invalid={Boolean(errors.cod_refusal_limit)} {...form.register("cod_refusal_limit")} />
+            </Field>
+          </div>
+        </Section>
+
+        <Section title="Returns" className="lg:col-span-2">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field
+              label="Return window (days)"
+              htmlFor="st-return-days"
+              error={errors.return_days?.message}
+              hint="Days after delivery a buyer may ask to return items (1–90)."
+            >
+              <Input id="st-return-days" inputMode="numeric" aria-invalid={Boolean(errors.return_days)} {...form.register("return_days")} />
+            </Field>
+            <Field
+              label="Store reply time (days)"
+              htmlFor="st-return-reply"
+              error={errors.return_reply_days?.message}
+              hint="Days a store has to answer a return request before KACHI decides it (1–14)."
+            >
+              <Input id="st-return-reply" inputMode="numeric" aria-invalid={Boolean(errors.return_reply_days)} {...form.register("return_reply_days")} />
+            </Field>
+            <Field
+              label="Dispute window (days)"
+              htmlFor="st-return-dispute"
+              error={errors.return_dispute_days?.message}
+              hint="Days a buyer has to ask KACHI to review a store's rejection (1–30)."
+            >
+              <Input id="st-return-dispute" inputMode="numeric" aria-invalid={Boolean(errors.return_dispute_days)} {...form.register("return_dispute_days")} />
             </Field>
           </div>
         </Section>

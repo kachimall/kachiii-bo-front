@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { EyeIcon, FileTextIcon, Loader2Icon } from "lucide-react";
+import { EyeIcon, FileTextIcon, Loader2Icon, PencilIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
@@ -14,6 +14,7 @@ import { StatusBadge } from "@/components/common/status-badge";
 import { Button } from "@/components/ui/button";
 import { useApi } from "@/hooks/use-api";
 import { ApiError, errorMessage } from "@/lib/api/client";
+import { getCommissionRates, setVendorCommission } from "@/lib/api/finance";
 import {
   getVendor,
   openConsentCopy,
@@ -27,6 +28,7 @@ import { formatBytes, formatDateTime, humanize } from "@/lib/format";
 import { runAction } from "@/lib/forms";
 import { useCan } from "@/store/auth";
 import type { Vendor } from "@/types/api";
+import { RateDialog } from "../../commission-rates/rate-dialog";
 
 interface StatusAction {
   to: VendorStatusInput["status"];
@@ -308,6 +310,8 @@ function VendorView({ vendor, onChange, onReload }: { vendor: Vendor; onChange: 
               />
             </Section>
           )}
+
+          {can("commissions.view") && <VendorCommission vendor={vendor} canManage={can("commissions.manage")} />}
         </div>
       </div>
 
@@ -330,5 +334,57 @@ function VendorView({ vendor, onChange, onReload }: { vendor: Vendor; onChange: 
         onSubmit={changeStatus}
       />
     </>
+  );
+}
+
+/** The vendor's own commission rate, if any: the rates list only names vendors that have one. */
+function VendorCommission({ vendor, canManage }: { vendor: Vendor; canManage: boolean }) {
+  const { data, error, mutate } = useApi("commission-rates", getCommissionRates);
+  const [editing, setEditing] = useState(false);
+  const own = data?.vendors.find((v) => v.id === vendor.id)?.rate ?? null;
+
+  return (
+    <Section
+      title="Commission"
+      actions={
+        canManage &&
+        data && (
+          <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+            <PencilIcon /> Change
+          </Button>
+        )
+      }
+    >
+      {error ? (
+        <p className="text-sm text-muted-foreground">Could not load the commission rates.</p>
+      ) : !data ? (
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      ) : own !== null ? (
+        <p className="text-sm">
+          <span className="font-medium">{Number(own)}%</span> on all its products (its own rate).
+        </p>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          No rate of its own: its categories&apos; rates apply, else the default of {Number(data.default)}%.
+        </p>
+      )}
+      <RateDialog
+        state={
+          editing
+            ? {
+                title: `Commission for ${vendor.business_name}`,
+                description: "Applies to all the vendor's products, whatever their category. New orders only.",
+                rate: own ?? "",
+                removable: true,
+              }
+            : null
+        }
+        onOpenChange={setEditing}
+        onSubmit={async (rate) => {
+          mutate(await setVendorCommission(vendor.id, rate));
+          toast.success(rate === null ? "The vendor's own rate was removed." : "Commission rate updated.");
+        }}
+      />
+    </Section>
   );
 }

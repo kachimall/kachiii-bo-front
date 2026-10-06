@@ -10,6 +10,9 @@ export interface SettingsInput {
   delivery_flat_fee?: number;
   free_delivery_min_total?: number | null;
   cod_refusal_limit?: number;
+  return_days?: number;
+  return_reply_days?: number;
+  return_dispute_days?: number;
 }
 
 export const getSettings = () => api<Settings>("/admin/settings");
