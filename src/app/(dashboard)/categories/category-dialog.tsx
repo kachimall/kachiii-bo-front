@@ -150,8 +150,8 @@ function CategoryForm({
           <ImageField
             url={editing.image_url}
             alt={editing.name}
-            onUpload={async (file) => {
-              const updated = await uploadCategoryImage(editing.id, file);
+            onUpload={async (image) => {
+              const updated = await uploadCategoryImage(editing.id, image);
               onImageChange({ ...editing, image_url: updated.image_url });
               onSaved();
             }}

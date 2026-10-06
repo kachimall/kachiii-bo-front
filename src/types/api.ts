@@ -103,6 +103,13 @@ export type VoucherFunder = "kachi" | "vendor";
 export type VoucherType = "fixed" | "percentage";
 export type VoucherState = "off" | "scheduled" | "ended" | "running";
 export type AccessLevel = "view" | "change";
+/** Where a home banner shows: the home page's main slider, or the promo cards beside it on a wide screen. */
+export type BannerPlacement = "home_carousel" | "home_side";
+export type BannerStatus = "off" | "scheduled" | "live" | "ended";
+/** A sale (a delivered package), items sent back, or a refund charged to the store. */
+export type LedgerEntryType = "sale" | "return" | "refund";
+/** "pending" during the return period (payout_hold_days after delivery), then "available". */
+export type LedgerEntryStatus = "pending" | "available";
 
 /**
  * A variant's option values. The spec says string; the API sends an object such as
@@ -649,6 +656,65 @@ export interface Settings {
   return_reply_days: number;
   /** Days the buyer has to ask KACHI to review the store's rejection (1–30). */
   return_dispute_days: number;
+  /** Read-only here: changed at PATCH /admin/payout-settings (payouts.manage). */
+  payout_hold_days?: number;
+}
+
+/** GET /admin/payout-settings. */
+export interface PayoutSettings {
+  /** Days after delivery before a sale counts towards a payout (0–30). Recorded sales keep their date. */
+  payout_hold_days: number;
+}
+
+/** A home banner as staff manage it (DECISIONS CN1). Times are UTC ISO strings. */
+export interface Banner {
+  id: Ulid;
+  placement: BannerPlacement;
+  /** Staff's own name for it; never shown in the shop. */
+  name: string;
+  alt_text: string;
+  headline: string | null;
+  subheadline: string | null;
+  button_label: string | null;
+  /** A path in the shop ("/categories/shoes") or an https:// address. */
+  link_url: string | null;
+  desktop_image_url: string | null;
+  /** The shop falls back to the desktop image without one. */
+  mobile_image_url: string | null;
+  starts_at: IsoDate | null;
+  ends_at: IsoDate | null;
+  show_countdown: boolean;
+  is_active: boolean;
+  position: number;
+  status: BannerStatus;
+  created_at: IsoDate | null;
+  updated_at: IsoDate | null;
+}
+
+/** GET /admin/vendors/{id}/earnings/summary: totals net of returns and refunds. */
+export interface EarningsSummary {
+  earned: Money;
+  commission: Money;
+  /** Waits for the end of the return period. */
+  pending: Money;
+  /** Counts towards the next payout. */
+  available: Money;
+}
+
+/** One change to what a store is owed (DECISIONS FN6); the ledger is append-only. */
+export interface LedgerEntry {
+  id: Ulid;
+  type: LedgerEntryType;
+  order_number: string;
+  return_number: string | null;
+  /** What the store earns after commission; negative when it gives money back. */
+  amount: Money;
+  /** Who pays it out: noqodi from the payment split, or KACHI (cash on delivery, its own vouchers). */
+  paid_by: { noqodi: Money; kachi: Money };
+  commission: Money;
+  available_at: IsoDate;
+  status: LedgerEntryStatus;
+  created_at: IsoDate | null;
 }
 
 /** GET /admin/commission-rates: the default, and the categories and vendors with their own rate. */

@@ -56,18 +56,47 @@ export function slugify(value: string): string {
     .slice(0, 120);
 }
 
-/** ISO string -> value for <input type="datetime-local"> in the browser's time zone. */
-export function toLocalInput(value: string | null | undefined): string {
+// UAE time (Gulf Standard Time) is UTC+4 all year: no daylight saving. Schedules (vouchers,
+// banners) are entered and shown in it whatever the browser's zone, and sent with the offset;
+// the API converts them to UTC.
+const UAE_TIME_ZONE = "Asia/Dubai";
+const UAE_OFFSET_MS = 4 * 60 * 60_000;
+
+const uaeDateFormat = new Intl.DateTimeFormat("en-AE", { day: "numeric", month: "short", year: "numeric", timeZone: UAE_TIME_ZONE });
+const uaeDateTimeFormat = new Intl.DateTimeFormat("en-AE", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: UAE_TIME_ZONE,
+});
+
+/** A date in UAE time, e.g. "10 Oct 2026". */
+export function formatUaeDate(value: string | null | undefined): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : uaeDateFormat.format(date);
+}
+
+/** A date and time in UAE time. */
+export function formatUaeDateTime(value: string | null | undefined): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : uaeDateTimeFormat.format(date);
+}
+
+/** ISO string -> value for <input type="datetime-local"> in UAE time. */
+export function toUaeInput(value: string | null | undefined): string {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  const offset = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+  return new Date(date.getTime() + UAE_OFFSET_MS).toISOString().slice(0, 16);
 }
 
-/** <input type="datetime-local"> value -> ISO string with the browser's offset applied. */
-export function fromLocalInput(value: string): string {
-  return new Date(value).toISOString();
+/** <input type="datetime-local"> value, read as UAE time -> ISO string with "+04:00". */
+export function fromUaeInput(value: string): string {
+  return `${value.slice(0, 16)}:00+04:00`;
 }
 
 /** A shipping/delivery address object as lines; the API leaves its shape open. */

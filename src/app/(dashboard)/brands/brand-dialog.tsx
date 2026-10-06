@@ -106,8 +106,8 @@ function BrandForm({
           <ImageField
             url={brand.logo_url}
             alt={brand.name}
-            onUpload={async (file) => {
-              onLogoChange(await uploadBrandLogo(brand.id, file));
+            onUpload={async (image) => {
+              onLogoChange(await uploadBrandLogo(brand.id, image));
               onSaved();
             }}
             onRemove={async () => {

@@ -1,5 +1,13 @@
 import { api, apiList, type Query } from "@/lib/api/client";
-import type { CommissionRates, Refund, RefundStatus } from "@/types/api";
+import type {
+  CommissionRates,
+  EarningsSummary,
+  LedgerEntry,
+  LedgerEntryStatus,
+  PayoutSettings,
+  Refund,
+  RefundStatus,
+} from "@/types/api";
 
 export const listRefunds = (query: Query & { status?: RefundStatus | ""; page?: number; per_page?: number }) =>
   apiList<Refund>("/admin/refunds", query);
@@ -17,3 +25,16 @@ export const setCategoryCommission = (categoryId: string, rate: string | null) =
 /** null removes the vendor's own rate. */
 export const setVendorCommission = (vendorId: string, rate: string | null) =>
   api<CommissionRates>(`/admin/vendors/${vendorId}/commission`, { method: "PUT", body: { rate } });
+
+// Vendor earnings (DECISIONS FN6), payouts.view. The ledger is newest first.
+export const getVendorEarningsSummary = (vendorId: string) =>
+  api<EarningsSummary>(`/admin/vendors/${vendorId}/earnings/summary`);
+export const listVendorEarnings = (
+  vendorId: string,
+  query: Query & { status?: LedgerEntryStatus | ""; page?: number; per_page?: number },
+) => apiList<LedgerEntry>(`/admin/vendors/${vendorId}/earnings`, query);
+
+// Payout rules: viewing needs payouts.view, changing payouts.manage.
+export const getPayoutSettings = () => api<PayoutSettings>("/admin/payout-settings");
+export const updatePayoutSettings = (body: PayoutSettings) =>
+  api<PayoutSettings>("/admin/payout-settings", { method: "PATCH", body });

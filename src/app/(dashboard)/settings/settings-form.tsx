@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import Link from "next/link";
 import { Loader2Icon } from "lucide-react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
@@ -178,6 +179,17 @@ function SettingsForm({ settings, readOnly, onSaved }: { settings: Settings; rea
               <Input id="st-return-dispute" inputMode="numeric" aria-invalid={Boolean(errors.return_dispute_days)} {...form.register("return_dispute_days")} />
             </Field>
           </div>
+          {settings.payout_hold_days !== undefined && (
+            // Read-only here: PATCH /admin/settings ignores it; it changes at /admin/payout-settings.
+            <p className="mt-4 text-xs text-muted-foreground">
+              Sales count towards a vendor payout {settings.payout_hold_days} {settings.payout_hold_days === 1 ? "day" : "days"} after
+              delivery. Staff with payouts access change this on the{" "}
+              <Link href="/payouts" className="text-secondary hover:underline">
+                Payouts
+              </Link>{" "}
+              page.
+            </p>
+          )}
         </Section>
 
         <Section title="Delivery fees" className="lg:col-span-2">

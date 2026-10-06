@@ -15,6 +15,8 @@ const STATUS_TONES: Record<string, Tone> = {
   active: "success",
   approved: "success",
   running: "success",
+  live: "success",
+  available: "success",
   paid: "success",
   succeeded: "success",
   delivered: "success",

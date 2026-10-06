@@ -19,7 +19,18 @@ import { listMovements, recordMovement } from "@/lib/api/products";
 import { formatDateTime, formatOptions, humanize } from "@/lib/format";
 import { handleFormError, nullable } from "@/lib/forms";
 import { movementSchema, type MovementOutput, type MovementValues } from "@/lib/schemas/catalog";
-import type { ProductVariant } from "@/types/api";
+import type { InventoryMovement, ProductVariant } from "@/types/api";
+
+/**
+ * The signed change of a movement. The API sends `quantity` unsigned, so the sign comes from the
+ * on-hand counts; a reservation or release leaves on hand alone and moves only reserved stock.
+ */
+function movementChange(m: InventoryMovement): { value: number; reservedOnly: boolean } {
+  const onHand = m.on_hand_after - m.on_hand_before;
+  if (onHand !== 0) return { value: onHand, reservedOnly: false };
+  const reserved = m.reserved_after - m.reserved_before;
+  return { value: reserved !== 0 ? reserved : m.quantity, reservedOnly: reserved !== 0 };
+}
 
 export function VariantInventoryDialog({
   productId,
@@ -84,25 +95,33 @@ export function VariantInventoryDialog({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {movements.data.data.map((m, index) => (
-                    <TableRow key={`${m.created_at}-${index}`}>
-                      <TableCell className="whitespace-nowrap">{formatDateTime(m.created_at)}</TableCell>
-                      <TableCell>{humanize(m.type)}</TableCell>
-                      <TableCell className={m.quantity < 0 ? "text-destructive" : "text-success"}>
-                        {m.quantity > 0 ? `+${m.quantity}` : m.quantity}
-                      </TableCell>
-                      <TableCell>
-                        {m.on_hand_before} → {m.on_hand_after}
-                      </TableCell>
-                      <TableCell>
-                        {m.reserved_before} → {m.reserved_after}
-                      </TableCell>
-                      <TableCell>{m.created_by?.name ?? "System"}</TableCell>
-                      <TableCell className="max-w-48 truncate" title={m.note ?? undefined}>
-                        {m.note ?? "—"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {movements.data.data.map((m, index) => {
+                    const change = movementChange(m);
+                    return (
+                      <TableRow key={`${m.created_at}-${index}`}>
+                        <TableCell className="whitespace-nowrap">{formatDateTime(m.created_at)}</TableCell>
+                        <TableCell>{humanize(m.type)}</TableCell>
+                        <TableCell
+                          className={
+                            change.reservedOnly ? "text-muted-foreground" : change.value < 0 ? "text-destructive" : "text-success"
+                          }
+                          title={change.reservedOnly ? "Reserved stock; on hand is unchanged" : undefined}
+                        >
+                          {change.value > 0 ? `+${change.value}` : change.value}
+                        </TableCell>
+                        <TableCell>
+                          {m.on_hand_before} → {m.on_hand_after}
+                        </TableCell>
+                        <TableCell>
+                          {m.reserved_before} → {m.reserved_after}
+                        </TableCell>
+                        <TableCell>{m.created_by?.name ?? "System"}</TableCell>
+                        <TableCell className="max-w-48 truncate" title={m.note ?? undefined}>
+                          {m.note ?? "—"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
               <Pagination meta={movements.data.meta} onPage={setPage} />

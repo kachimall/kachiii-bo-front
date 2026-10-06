@@ -15,7 +15,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Switch } from "@/components/ui/switch";
 import { useStoreOptions } from "@/hooks/use-options";
 import { createVoucher, updateVoucher, type VoucherInput } from "@/lib/api/vouchers";
-import { fromLocalInput, toLocalInput } from "@/lib/format";
+import { fromUaeInput, toUaeInput } from "@/lib/format";
 import { handleFormError } from "@/lib/forms";
 import { voucherSchema, type VoucherOutput, type VoucherValues } from "@/lib/schemas/vouchers";
 import { useCan } from "@/store/auth";
@@ -47,8 +47,8 @@ function defaults(voucher?: Voucher): VoucherValues {
     value: voucher?.value ?? "",
     max_discount: voucher?.max_discount ?? "",
     min_spend: voucher?.min_spend ?? "0",
-    starts_at: toLocalInput(voucher?.starts_at),
-    ends_at: toLocalInput(voucher?.ends_at),
+    starts_at: toUaeInput(voucher?.starts_at),
+    ends_at: toUaeInput(voucher?.ends_at),
     usage_limit: voucher?.usage_limit?.toString() ?? "",
     usage_limit_per_buyer: voucher?.usage_limit_per_buyer.toString() ?? "1",
     is_active: voucher?.is_active ?? true,
@@ -65,8 +65,9 @@ function toInput(v: VoucherOutput): VoucherInput {
     value: Number(v.value),
     max_discount: v.type === "percentage" && v.max_discount !== "" ? Number(v.max_discount) : null,
     min_spend: v.min_spend === "" ? 0 : Number(v.min_spend),
-    starts_at: fromLocalInput(v.starts_at),
-    ends_at: fromLocalInput(v.ends_at),
+    // UAE time with its offset: the API converts it to UTC (SaveVoucherRequest).
+    starts_at: fromUaeInput(v.starts_at),
+    ends_at: fromUaeInput(v.ends_at),
     usage_limit: v.usage_limit === "" ? null : Number(v.usage_limit),
     usage_limit_per_buyer: Number(v.usage_limit_per_buyer),
     is_active: v.is_active,
@@ -190,7 +191,7 @@ export function VoucherForm({ voucher, onSaved }: { voucher?: Voucher; onSaved?:
                 <Input id="v-end" type="datetime-local" aria-invalid={Boolean(errors.ends_at)} {...form.register("ends_at")} />
               </Field>
             </div>
-            <p className="-mt-2 text-xs text-muted-foreground">Times are in your browser&apos;s time zone.</p>
+            <p className="-mt-2 text-xs text-muted-foreground">Times are in UAE time (GMT+4).</p>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Total uses" htmlFor="v-limit" error={errors.usage_limit?.message} hint="Leave empty for no limit.">
                 <Input id="v-limit" inputMode="numeric" aria-invalid={Boolean(errors.usage_limit)} {...form.register("usage_limit")} />

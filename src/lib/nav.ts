@@ -3,6 +3,7 @@ import {
   BoxesIcon,
   FileSignatureIcon,
   FolderTreeIcon,
+  ImagesIcon,
   LayoutDashboardIcon,
   type LucideIcon,
   PackageIcon,
@@ -18,6 +19,7 @@ import {
   UserCogIcon,
   UsersIcon,
   ListChecksIcon,
+  WalletIcon,
 } from "lucide-react";
 
 export interface NavItem {
@@ -61,7 +63,12 @@ export const NAV: NavGroup[] = [
     items: [
       { href: "/refunds", label: "Refunds", icon: ReceiptIcon, permission: "payments.view" },
       { href: "/commission-rates", label: "Commission", icon: PercentIcon, permission: "commissions.view" },
+      { href: "/payouts", label: "Payouts", icon: WalletIcon, permission: "payouts.view" },
     ],
+  },
+  {
+    label: "Content",
+    items: [{ href: "/banners", label: "Banners", icon: ImagesIcon, permission: "content.view" }],
   },
   {
     label: "Marketplace",

@@ -33,3 +33,10 @@ export const settingsSchema = z.object({
 });
 
 export type SettingsValues = z.infer<typeof settingsSchema>;
+
+/** PayoutSettingsController::update */
+export const payoutSettingsSchema = z.object({
+  payout_hold_days: int(0, 30, "Use 0 to 30 days."),
+});
+
+export type PayoutSettingsValues = z.infer<typeof payoutSettingsSchema>;

@@ -200,7 +200,7 @@ function StoreForm({ store, onDone }: { store: Store; onDone: () => void }) {
         <Field label="Contact email" htmlFor="s-email" error={errors.contact_email?.message}>
           <Input id="s-email" type="email" aria-invalid={Boolean(errors.contact_email)} {...form.register("contact_email")} />
         </Field>
-        <Field label="Contact phone" htmlFor="s-phone" error={errors.contact_phone?.message} hint="UAE number, e.g. +971501234567">
+        <Field label="Contact phone" htmlFor="s-phone" error={errors.contact_phone?.message} hint="A UAE number, e.g. 050 123 4567. The server checks the format.">
           <Input id="s-phone" type="tel" aria-invalid={Boolean(errors.contact_phone)} {...form.register("contact_phone")} />
         </Field>
       </div>

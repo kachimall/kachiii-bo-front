@@ -29,6 +29,7 @@ import { runAction } from "@/lib/forms";
 import { useCan } from "@/store/auth";
 import type { Vendor } from "@/types/api";
 import { RateDialog } from "../../commission-rates/rate-dialog";
+import { VendorEarnings } from "./vendor-earnings";
 
 interface StatusAction {
   to: VendorStatusInput["status"];
@@ -314,6 +315,13 @@ function VendorView({ vendor, onChange, onReload }: { vendor: Vendor; onChange: 
           {can("commissions.view") && <VendorCommission vendor={vendor} canManage={can("commissions.manage")} />}
         </div>
       </div>
+
+      {/* Only a vendor with a store can have sold anything. */}
+      {can("payouts.view") && vendor.store && (
+        <div className="mt-6">
+          <VendorEarnings vendorId={vendor.id} />
+        </div>
+      )}
 
       <ConfirmDialog
         open={approving}

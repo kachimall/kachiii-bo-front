@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useApi } from "@/hooks/use-api";
 import { useQueryState } from "@/hooks/use-query-state";
 import { deleteVoucher, listVouchers } from "@/lib/api/vouchers";
-import { formatDate } from "@/lib/format";
+import { formatUaeDate } from "@/lib/format";
 import { runAction } from "@/lib/forms";
 import { useCan } from "@/store/auth";
 import type { Voucher } from "@/types/api";
@@ -89,7 +89,7 @@ export function VouchersList() {
                   <TableCell>{voucherDiscount(voucher)}</TableCell>
                   <TableCell>{voucher.min_spend === "0.00" ? "—" : `AED ${voucher.min_spend}`}</TableCell>
                   <TableCell className="whitespace-nowrap text-muted-foreground">
-                    {formatDate(voucher.starts_at)} – {formatDate(voucher.ends_at)}
+                    {formatUaeDate(voucher.starts_at)} – {formatUaeDate(voucher.ends_at)}
                   </TableCell>
                   <TableCell>
                     {voucher.uses ?? 0}
