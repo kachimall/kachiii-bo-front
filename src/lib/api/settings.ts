@@ -9,6 +9,7 @@ export interface SettingsInput {
   delivery_fee_mode?: "courier" | "flat";
   delivery_flat_fee?: number;
   free_delivery_min_total?: number | null;
+  cod_refusal_limit?: number;
 }
 
 export const getSettings = () => api<Settings>("/admin/settings");

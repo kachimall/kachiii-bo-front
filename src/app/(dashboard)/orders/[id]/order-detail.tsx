@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FlagIcon } from "lucide-react";
+import { FileTextIcon, FlagIcon, Loader2Icon, TruckIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { DetailList } from "@/components/common/detail-list";
@@ -12,12 +12,17 @@ import { AsyncContent } from "@/components/common/states";
 import { StatusBadge } from "@/components/common/status-badge";
 import { Thumb } from "@/components/common/thumb";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useApi } from "@/hooks/use-api";
-import { cancelVendorOrder, getOrder } from "@/lib/api/orders";
+import { errorMessage } from "@/lib/api/client";
+import { cancelVendorOrder, getOrder, openWaybill, sendCourierUpdate } from "@/lib/api/orders";
 import { addressLines, formatDateTime, formatMoney, formatOptions, humanize } from "@/lib/format";
 import { useCan } from "@/store/auth";
-import type { Purchase, Shipment, VendorOrder } from "@/types/api";
+import type { CourierStatus, Purchase, Shipment, VendorOrder } from "@/types/api";
 
 // Staff may cancel a store's order until it ships (VendorOrderStatus::canBeCancelledBy).
 const CANCELLABLE = new Set(["placed", "accepted", "ready_to_ship"]);
@@ -34,6 +39,7 @@ export function OrderDetail({ id }: { id: string }) {
 function OrderView({ order, onChange }: { order: Purchase; onChange: (order: Purchase) => void }) {
   const can = useCan();
   const [cancelling, setCancelling] = useState<VendorOrder | null>(null);
+  const [updating, setUpdating] = useState<Shipment | null>(null);
   const money = (amount: string | null | undefined) => formatMoney(amount, order.currency_code);
   const address = addressLines(order.shipping_address);
 
@@ -135,6 +141,7 @@ function OrderView({ order, onChange }: { order: Purchase; onChange: (order: Pur
                     { label: "Accepted", value: formatDateTime(vendorOrder.accepted_at) },
                     { label: "Shipped", value: formatDateTime(vendorOrder.shipped_at) },
                     { label: "Delivered", value: formatDateTime(vendorOrder.delivered_at) },
+                    ...(vendorOrder.returned_at ? [{ label: "Returned", value: formatDateTime(vendorOrder.returned_at) }] : []),
                   ]}
                 />
                 {vendorOrder.cancelled_at && (
@@ -149,23 +156,18 @@ function OrderView({ order, onChange }: { order: Purchase; onChange: (order: Pur
 
           {order.packages.length > 0 && (
             <Section title="Packages" flush>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="pl-5">Service</TableHead>
-                    <TableHead>Fulfilled by</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Delivery</TableHead>
-                    <TableHead>Weight</TableHead>
-                    <TableHead className="pr-5 text-right">Fee</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {order.packages.map((pkg) => (
-                    <PackageRow key={pkg.id} pkg={pkg} storeName={order.orders.find((o) => o.id === pkg.order_id)?.store.name} money={money} />
-                  ))}
-                </TableBody>
-              </Table>
+              <ul className="divide-y">
+                {order.packages.map((pkg) => (
+                  <PackageItem
+                    key={pkg.id}
+                    pkg={pkg}
+                    storeName={order.orders.find((o) => o.id === pkg.order_id)?.store.name}
+                    money={money}
+                    onWaybill={() => openWaybill(order.id, pkg.id).catch((e) => toast.error(errorMessage(e)))}
+                    onCourierUpdate={can("orders.manage") ? () => setUpdating(pkg) : undefined}
+                  />
+                ))}
+              </ul>
             </Section>
           )}
 
@@ -259,6 +261,16 @@ function OrderView({ order, onChange }: { order: Purchase; onChange: (order: Pur
         </div>
       </div>
 
+      <CourierUpdateDialog
+        pkg={updating}
+        onOpenChange={(open) => !open && setUpdating(null)}
+        onSubmit={async (status, reason) => {
+          if (!updating) return;
+          onChange(await sendCourierUpdate(order.id, updating.id, status, reason));
+          toast.success("Courier update recorded.");
+        }}
+      />
+
       <ReasonDialog
         open={cancelling !== null}
         onOpenChange={(open) => !open && setCancelling(null)}
@@ -288,22 +300,201 @@ function SummaryRow({ label, value, strong }: { label: string; value: string; st
   );
 }
 
-function PackageRow({ pkg, storeName, money }: { pkg: Shipment; storeName?: string; money: (a: string) => string }) {
+const COURIER_STATUSES: { value: CourierStatus; label: string }[] = [
+  { value: "picked_up", label: "Picked up" },
+  { value: "in_transit", label: "In transit" },
+  { value: "out_for_delivery", label: "Out for delivery" },
+  { value: "delivery_failed", label: "Delivery failed" },
+  { value: "delivered", label: "Delivered" },
+  { value: "returned", label: "Returned to sender" },
+];
+
+const FINAL = new Set(["delivered", "returned", "cancelled"]);
+
+function PackageItem({
+  pkg,
+  storeName,
+  money,
+  onWaybill,
+  onCourierUpdate,
+}: {
+  pkg: Shipment;
+  storeName?: string;
+  money: (a: string) => string;
+  onWaybill: () => void;
+  /** Only while the backend runs the mock courier; it answers 404 otherwise. */
+  onCourierUpdate?: () => void;
+}) {
+  const steps = [...(pkg.tracking ?? [])].reverse();
+  const movable = pkg.waybill_number !== null && !FINAL.has(pkg.status);
+
   return (
-    <TableRow>
-      <TableCell className="pl-5">
-        <span className="block font-medium">{pkg.service.name}</span>
-        {storeName && <span className="block text-xs text-muted-foreground">{storeName}</span>}
-      </TableCell>
-      <TableCell>{humanize(pkg.fulfiller)}</TableCell>
-      <TableCell>
-        <StatusBadge status={pkg.status} />
-      </TableCell>
-      <TableCell className="text-muted-foreground">
-        {pkg.delivered_at ? `Delivered ${formatDateTime(pkg.delivered_at)}` : pkg.shipped_at ? `Shipped ${formatDateTime(pkg.shipped_at)}` : `${pkg.min_days}–${pkg.max_days} days`}
-      </TableCell>
-      <TableCell>{(pkg.weight_grams / 1000).toFixed(2)} kg</TableCell>
-      <TableCell className="pr-5 text-right">{money(pkg.fee)}</TableCell>
-    </TableRow>
+    <li className="grid gap-3 p-5 text-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="font-medium">
+            {pkg.service.name}
+            {storeName && <span className="font-normal text-muted-foreground"> · {storeName}</span>}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {humanize(pkg.fulfiller)} · {(pkg.weight_grams / 1000).toFixed(2)} kg · {money(pkg.fee)}
+            {pkg.quoted_fee ? ` (courier rate ${money(pkg.quoted_fee)})` : ""}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBadge status={pkg.status} />
+          {pkg.courier_status && <StatusBadge status={pkg.courier_status} />}
+        </div>
+      </div>
+
+      <DetailList
+        className="sm:grid-cols-4"
+        items={[
+          { label: "Waybill", value: pkg.waybill_number ? <span className="font-mono">{pkg.waybill_number}</span> : "Not booked" },
+          { label: "Booked", value: formatDateTime(pkg.booked_at) },
+          {
+            label: "Delivery",
+            value: pkg.delivered_at
+              ? `Delivered ${formatDateTime(pkg.delivered_at)}`
+              : pkg.returned_at
+                ? `Returned ${formatDateTime(pkg.returned_at)}`
+                : pkg.shipped_at
+                  ? `Shipped ${formatDateTime(pkg.shipped_at)}`
+                  : `${pkg.min_days}–${pkg.max_days} days`,
+          },
+          {
+            label: "Cash on delivery",
+            value: pkg.cash_on_delivery ? (
+              <span className="flex items-center gap-2">
+                {money(pkg.cash_on_delivery.amount)} <StatusBadge status={pkg.cash_on_delivery.status} />
+              </span>
+            ) : (
+              "Paid online"
+            ),
+          },
+        ]}
+      />
+
+      {steps.length > 0 && (
+        <ol className="grid gap-2 border-l pl-4">
+          {steps.map((step) => (
+            <li key={`${step.status}-${step.occurred_at}`}>
+              <span className="font-medium">{step.description ?? humanize(step.status)}</span>
+              {step.reason && <span className="text-muted-foreground"> ({step.reason})</span>}
+              <span className="block text-xs text-muted-foreground">{formatDateTime(step.occurred_at)}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+
+      {(pkg.waybill_ready || (onCourierUpdate && movable)) && (
+        <div className="flex flex-wrap gap-2">
+          {pkg.waybill_ready && (
+            <Button variant="outline" size="sm" onClick={onWaybill}>
+              <FileTextIcon />
+              Waybill
+            </Button>
+          )}
+          {onCourierUpdate && movable && (
+            <Button variant="outline" size="sm" onClick={onCourierUpdate}>
+              <TruckIcon />
+              Courier update
+            </Button>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
+/** Plays Zajel for a booked package while the backend runs its mock courier. */
+function CourierUpdateDialog({
+  pkg,
+  onOpenChange,
+  onSubmit,
+}: {
+  pkg: Shipment | null;
+  onOpenChange: (open: boolean) => void;
+  onSubmit: (status: CourierStatus, reason?: string) => Promise<void>;
+}) {
+  return (
+    <Dialog open={pkg !== null} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        {pkg && <CourierUpdateForm pkg={pkg} onOpenChange={onOpenChange} onSubmit={onSubmit} />}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CourierUpdateForm({
+  pkg,
+  onOpenChange,
+  onSubmit,
+}: {
+  pkg: Shipment;
+  onOpenChange: (open: boolean) => void;
+  onSubmit: (status: CourierStatus, reason?: string) => Promise<void>;
+}) {
+  const [status, setStatus] = useState<CourierStatus>(pkg.courier_status ? "in_transit" : "picked_up");
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string>();
+  const [pending, setPending] = useState(false);
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setPending(true);
+    setError(undefined);
+    try {
+      await onSubmit(status, reason.trim() || undefined);
+      onOpenChange(false);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="grid gap-4">
+      <DialogHeader>
+        <DialogTitle>Courier update</DialogTitle>
+        <DialogDescription>
+          Test courier only: moves waybill {pkg.waybill_number} as Zajel would. The buyer gets the shipped and delivered
+          emails.
+        </DialogDescription>
+      </DialogHeader>
+      <Field label="Status" htmlFor="courier-status">
+        <NativeSelect id="courier-status" value={status} onChange={(e) => setStatus(e.target.value as CourierStatus)}>
+          {COURIER_STATUSES.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
+          ))}
+        </NativeSelect>
+      </Field>
+      <Field
+        label="Reason (optional)"
+        htmlFor="courier-reason"
+        error={error}
+        hint={status === "returned" ? "“refused” counts against the buyer’s cash on delivery." : "Up to 50 characters."}
+      >
+        <Input
+          id="courier-reason"
+          value={reason}
+          maxLength={50}
+          placeholder={status === "returned" ? "refused" : status === "delivery_failed" ? "nobody home" : ""}
+          onChange={(e) => setReason(e.target.value)}
+        />
+      </Field>
+      <DialogFooter>
+        <DialogClose render={<Button variant="outline" type="button" />} disabled={pending}>
+          Cancel
+        </DialogClose>
+        <Button type="submit" disabled={pending}>
+          {pending && <Loader2Icon className="animate-spin" />}
+          Record update
+        </Button>
+      </DialogFooter>
+    </form>
   );
 }

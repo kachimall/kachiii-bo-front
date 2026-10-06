@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { KeyRoundIcon, LogOutIcon, MenuIcon, XIcon } from "lucide-react";
+import { KeyRoundIcon, LogOutIcon, MenuIcon, MoonIcon, SunIcon, XIcon } from "lucide-react";
+import { useTheme } from "next-themes";
 import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -123,6 +124,7 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
         <MenuIcon />
       </Button>
       <div className="flex-1" />
+      <ThemeToggle />
       <DropdownMenu>
         <DropdownMenuTrigger
           render={<Button variant="ghost" className="h-10 gap-2.5 px-2" />}
@@ -152,6 +154,23 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
         </DropdownMenuContent>
       </DropdownMenu>
     </header>
+  );
+}
+
+function ThemeToggle() {
+  const { resolvedTheme, setTheme } = useTheme();
+
+  // Both icons render and CSS picks one, so server and client markup match before the theme is known.
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+      aria-label="Toggle dark mode"
+    >
+      <SunIcon className="hidden dark:block" />
+      <MoonIcon className="dark:hidden" />
+    </Button>
   );
 }
 

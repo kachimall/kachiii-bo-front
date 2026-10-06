@@ -11,7 +11,7 @@ import { StatusBadge } from "@/components/common/status-badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useApi } from "@/hooks/use-api";
-import { getBuyer, sendBuyerPasswordReset, setBuyerStatus } from "@/lib/api/buyers";
+import { getBuyer, sendBuyerPasswordReset, setBuyerCashOnDelivery, setBuyerStatus } from "@/lib/api/buyers";
 import { listOrders } from "@/lib/api/orders";
 import { formatDateTime, formatMoney } from "@/lib/format";
 import { runAction } from "@/lib/forms";
@@ -30,8 +30,9 @@ export function BuyerDetail({ id }: { id: string }) {
 function BuyerView({ buyer, onChange }: { buyer: Buyer; onChange: (buyer: Buyer) => void }) {
   const can = useCan();
   const canManage = can("customers.manage");
-  const [confirm, setConfirm] = useState<"status" | "reset" | null>(null);
+  const [confirm, setConfirm] = useState<"status" | "reset" | "cod" | null>(null);
   const suspended = buyer.status === "suspended";
+  const cod = buyer.cash_on_delivery;
 
   return (
     <>
@@ -68,6 +69,23 @@ function BuyerView({ buyer, onChange }: { buyer: Buyer; onChange: (buyer: Buyer)
               { label: "Joined", value: formatDateTime(buyer.created_at) },
             ]}
           />
+          {cod && (
+            <div className="mt-5 grid gap-3 border-t pt-5">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-medium">Cash on delivery</p>
+                <StatusBadge status={cod.allowed ? "active" : "off"} label={cod.allowed ? "Allowed" : "Off"} />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {cod.refused_parcels} refused {cod.refused_parcels === 1 ? "parcel" : "parcels"}
+                {cod.blocked_at ? ` · switched off ${formatDateTime(cod.blocked_at)}` : ""}
+              </p>
+              {canManage && (
+                <Button variant="outline" size="sm" className="w-fit" onClick={() => setConfirm("cod")}>
+                  {cod.allowed ? "Turn off cash on delivery" : "Allow cash on delivery"}
+                </Button>
+              )}
+            </div>
+          )}
         </Section>
         {can("orders.view") && <BuyerOrders email={buyer.email} />}
       </div>
@@ -87,6 +105,24 @@ function BuyerView({ buyer, onChange }: { buyer: Buyer; onChange: (buyer: Buyer)
           runAction(
             async () => onChange(await setBuyerStatus(buyer.id, suspended ? "active" : "suspended")),
             suspended ? "Buyer reactivated." : "Buyer suspended.",
+          )
+        }
+      />
+      <ConfirmDialog
+        open={confirm === "cod"}
+        onOpenChange={(open) => !open && setConfirm(null)}
+        title={cod?.allowed ? "Turn off cash on delivery?" : "Allow cash on delivery again?"}
+        description={
+          cod?.allowed
+            ? "Checkout will only offer online payment to this buyer."
+            : "Checkout offers cash on delivery again, and the refused-parcel count starts from zero."
+        }
+        confirmLabel={cod?.allowed ? "Turn off" : "Allow"}
+        destructive={cod?.allowed}
+        onConfirm={() =>
+          runAction(
+            async () => onChange(await setBuyerCashOnDelivery(buyer.id, !cod?.allowed)),
+            cod?.allowed ? "Cash on delivery is off for this buyer." : "Cash on delivery is on for this buyer.",
           )
         }
       />

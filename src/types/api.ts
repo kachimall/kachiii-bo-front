@@ -82,9 +82,13 @@ export type VendorOrderStatus =
   | "ready_to_ship"
   | "shipped"
   | "delivered"
+  | "returned"
   | "cancelled";
 export type CancelledBy = "buyer" | "vendor" | "staff" | "system";
-export type ShipmentStatus = "pending" | "processing" | "ready" | "shipped" | "delivered" | "cancelled";
+export type ShipmentStatus = "pending" | "processing" | "ready" | "shipped" | "delivered" | "returned" | "cancelled";
+/** What the courier (Zajel) reports. Not one-way: a failed attempt goes back out; delivered and returned are final. */
+export type CourierStatus = "picked_up" | "in_transit" | "out_for_delivery" | "delivery_failed" | "delivered" | "returned";
+export type CodStatus = "pending" | "collected" | "not_collected";
 export type Fulfiller = "vendor" | "provider";
 export type VendorDocumentType = "trade_license" | "vat_certificate" | "other";
 export type VoucherFunder = "kachi" | "vendor";
@@ -303,7 +307,18 @@ export interface Shipment {
   ready_at: IsoDate | null;
   shipped_at: IsoDate | null;
   delivered_at: IsoDate | null;
+  returned_at: IsoDate | null;
   cancelled_at: IsoDate | null;
+  /** The courier's tracking number, once booked. */
+  waybill_number: string | null;
+  courier_status: CourierStatus | null;
+  /** What the courier collects; null when paid online. */
+  cash_on_delivery: { amount: Money; status: CodStatus; collected_at: IsoDate | null } | null;
+  /** Courier updates, oldest first. */
+  tracking?: { status: CourierStatus; description: string | null; reason: string | null; occurred_at: IsoDate }[];
+  booked_at?: IsoDate | null;
+  /** The label can be downloaded (GET …/packages/{id}/waybill). */
+  waybill_ready?: boolean;
   quoted_fee?: Money;
 }
 
@@ -323,6 +338,7 @@ export interface VendorOrder {
   ready_at: IsoDate | null;
   shipped_at: IsoDate | null;
   delivered_at: IsoDate | null;
+  returned_at: IsoDate | null;
   cancelled_at: IsoDate | null;
   cancelled_by: CancelledBy | null;
   cancel_reason: string | null;
@@ -391,6 +407,8 @@ export interface Buyer {
   phone: string | null;
   status: UserStatus;
   email_verified: boolean;
+  /** Switched off after the admin-set number of refused parcels, or by staff. */
+  cash_on_delivery?: { allowed: boolean; blocked_at: IsoDate | null; refused_parcels: number };
   created_at: IsoDate | null;
 }
 
@@ -537,4 +555,6 @@ export interface Settings {
   delivery_fee_mode: "courier" | "flat";
   delivery_flat_fee: Money;
   free_delivery_min_total: Money | null;
+  /** Refused cash-on-delivery parcels before cash on delivery switches off for a buyer (1–10). */
+  cod_refusal_limit: number;
 }

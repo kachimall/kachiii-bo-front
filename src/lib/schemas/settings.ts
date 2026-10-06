@@ -20,6 +20,7 @@ export const settingsSchema = z.object({
   ship_deadline_days: int(1, 30, "Use 1 to 30 days."),
   cash_on_delivery_enabled: z.boolean(),
   cash_on_delivery_max_total: money(1, 9_999_999.99, "Use at least AED 1."),
+  cod_refusal_limit: int(1, 10, "Use 1 to 10 parcels."),
   delivery_fee_mode: z.enum(["courier", "flat"]),
   delivery_flat_fee: money(0, 9999.99, "Use AED 0 to 9,999.99."),
   free_delivery_min_total: z

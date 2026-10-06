@@ -25,6 +25,7 @@ const FIELDS = [
   "ship_deadline_days",
   "cash_on_delivery_enabled",
   "cash_on_delivery_max_total",
+  "cod_refusal_limit",
   "delivery_fee_mode",
   "delivery_flat_fee",
   "free_delivery_min_total",
@@ -36,6 +37,7 @@ function toForm(s: Settings): SettingsValues {
     ship_deadline_days: String(s.ship_deadline_days),
     cash_on_delivery_enabled: Boolean(s.cash_on_delivery_enabled),
     cash_on_delivery_max_total: String(s.cash_on_delivery_max_total),
+    cod_refusal_limit: String(s.cod_refusal_limit ?? 2),
     delivery_fee_mode: s.delivery_fee_mode,
     delivery_flat_fee: String(s.delivery_flat_fee),
     free_delivery_min_total: s.free_delivery_min_total === null ? "" : String(s.free_delivery_min_total),
@@ -72,6 +74,7 @@ function SettingsForm({ settings, readOnly, onSaved }: { settings: Settings; rea
         ship_deadline_days: Number(v.ship_deadline_days),
         cash_on_delivery_enabled: v.cash_on_delivery_enabled,
         cash_on_delivery_max_total: Number(v.cash_on_delivery_max_total),
+        cod_refusal_limit: Number(v.cod_refusal_limit),
         delivery_fee_mode: v.delivery_fee_mode,
         delivery_flat_fee: Number(v.delivery_flat_fee),
         free_delivery_min_total: v.free_delivery_min_total === "" ? null : Number(v.free_delivery_min_total),
@@ -127,6 +130,14 @@ function SettingsForm({ settings, readOnly, onSaved }: { settings: Settings; rea
               hint={codEnabled ? "Orders above this must be paid online." : "Applies when cash on delivery is on."}
             >
               <Input id="st-cod-max" inputMode="decimal" aria-invalid={Boolean(errors.cash_on_delivery_max_total)} {...form.register("cash_on_delivery_max_total")} />
+            </Field>
+            <Field
+              label="Refused parcels allowed"
+              htmlFor="st-cod-refusals"
+              error={errors.cod_refusal_limit?.message}
+              hint="After this many parcels refused at the door, cash on delivery switches off for that buyer (1–10)."
+            >
+              <Input id="st-cod-refusals" inputMode="numeric" aria-invalid={Boolean(errors.cod_refusal_limit)} {...form.register("cod_refusal_limit")} />
             </Field>
           </div>
         </Section>
