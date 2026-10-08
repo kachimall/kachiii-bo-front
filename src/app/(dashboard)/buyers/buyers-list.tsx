@@ -19,8 +19,9 @@ export function BuyersList() {
   const query = useQueryState();
   const q = query.get("q");
   const status = query.get("status");
+  const cashOnDelivery = query.get("cash_on_delivery") as "allowed" | "blocked" | "";
   const { data, error, loading, reload } = useApi(allowed ? `buyers?${query.key}` : null, () =>
-    listBuyers({ q, status, page: query.page }),
+    listBuyers({ q, status, cash_on_delivery: cashOnDelivery, page: query.page }),
   );
 
   if (!allowed) return <ForbiddenState />;
@@ -40,6 +41,16 @@ export function BuyersList() {
           <>
             <SearchInput value={q} onChange={(value) => query.set({ q: value })} placeholder="Name, email or phone" />
             <FilterSelect label="Statuses" value={status} onChange={(value) => query.set({ status: value })} options={["active", "suspended", "inactive"]} />
+            <FilterSelect
+              label="Cash on delivery"
+              value={cashOnDelivery}
+              onChange={(value) => query.set({ cash_on_delivery: value })}
+              className="sm:w-56"
+              options={[
+                { value: "allowed", label: "Cash on delivery allowed" },
+                { value: "blocked", label: "Blocked for refused parcels" },
+              ]}
+            />
           </>
         }
       >

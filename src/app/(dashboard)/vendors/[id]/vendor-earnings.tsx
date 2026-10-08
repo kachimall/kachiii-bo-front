@@ -9,7 +9,7 @@ import { useApi } from "@/hooks/use-api";
 import { getVendorEarningsSummary, listVendorEarnings } from "@/lib/api/finance";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { EarningsSummary, LedgerEntryStatus, LedgerEntryType } from "@/types/api";
+import type { EarningsSummary, LedgerEntryStatus, LedgerEntryType, PaymentMethod } from "@/types/api";
 
 const TYPE_LABELS: Record<LedgerEntryType, string> = {
   sale: "Sale",
@@ -25,8 +25,11 @@ const TYPE_LABELS: Record<LedgerEntryType, string> = {
 export function VendorEarnings({ vendorId }: { vendorId: string }) {
   const summary = useApi(`earnings-summary:${vendorId}`, () => getVendorEarningsSummary(vendorId));
   const [status, setStatus] = useState<LedgerEntryStatus | "">("");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
   const [page, setPage] = useState(1);
-  const entries = useApi(`earnings:${vendorId}:${status}:${page}`, () => listVendorEarnings(vendorId, { status, page }));
+  const entries = useApi(`earnings:${vendorId}:${status}:${paymentMethod}:${page}`, () =>
+    listVendorEarnings(vendorId, { status, payment_method: paymentMethod, page }),
+  );
 
   return (
     <div className="grid gap-4">
@@ -49,7 +52,7 @@ export function VendorEarnings({ vendorId }: { vendorId: string }) {
         onPage={setPage}
         empty={{
           title: "No earnings yet",
-          description: status ? "Try another status." : "A sale is recorded when a package is delivered.",
+          description: status || paymentMethod ? "Try other filters." : "A sale is recorded when a package is delivered.",
         }}
         filters={
           <>
@@ -64,6 +67,19 @@ export function VendorEarnings({ vendorId }: { vendorId: string }) {
               options={[
                 { value: "pending", label: "Pending (return period)" },
                 { value: "available", label: "Available" },
+                { value: "released", label: "Released in a payout" },
+              ]}
+            />
+            <FilterSelect
+              label="Payment methods"
+              value={paymentMethod}
+              onChange={(next) => {
+                setPaymentMethod(next as PaymentMethod | "");
+                setPage(1);
+              }}
+              options={[
+                { value: "online", label: "Paid online" },
+                { value: "cash_on_delivery", label: "Cash on delivery" },
               ]}
             />
           </>
@@ -112,7 +128,11 @@ export function VendorEarnings({ vendorId }: { vendorId: string }) {
                       <span className="flex flex-col gap-1">
                         <StatusBadge status={entry.status} />
                         <span className="text-xs text-muted-foreground">
-                          {entry.status === "pending" ? `from ${formatDate(entry.available_at)}` : formatDate(entry.available_at)}
+                          {entry.status === "pending"
+                            ? `from ${formatDate(entry.available_at)}`
+                            : entry.status === "released" && entry.payout_number
+                              ? `Payout ${entry.payout_number}`
+                              : formatDate(entry.available_at)}
                         </span>
                       </span>
                     </TableCell>
@@ -131,18 +151,40 @@ function SummaryGrid({ summary }: { summary: EarningsSummary }) {
   const items = [
     { label: "Earned", value: summary.earned, hint: "After commission, net of returns and refunds" },
     { label: "Commission", value: summary.commission, hint: "KACHI's, net of returns" },
+    ...(summary.released !== undefined ? [{ label: "Released", value: summary.released, hint: "Already in payouts" }] : []),
     { label: "Pending", value: summary.pending, hint: "Waiting for the return period to end" },
     { label: "Available", value: summary.available, hint: "Counts towards the next payout" },
   ];
+  const cod = summary.cash_on_delivery;
   return (
-    <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {items.map((item) => (
-        <div key={item.label} className="rounded-lg bg-muted/50 p-4">
-          <dt className="text-xs text-muted-foreground">{item.label}</dt>
-          <dd className="mt-1 text-lg font-semibold">{formatMoney(item.value)}</dd>
-          <dd className="mt-1 text-xs text-muted-foreground">{item.hint}</dd>
+    <div className="grid gap-4">
+      <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        {items.map((item) => (
+          <div key={item.label} className="rounded-lg bg-muted/50 p-4">
+            <dt className="text-xs text-muted-foreground">{item.label}</dt>
+            <dd className="mt-1 text-lg font-semibold">{formatMoney(item.value)}</dd>
+            <dd className="mt-1 text-xs text-muted-foreground">{item.hint}</dd>
+          </div>
+        ))}
+      </dl>
+      {cod && (
+        <div>
+          <h3 className="mb-2 text-sm font-medium">Cash-on-delivery share, which KACHI pays the store</h3>
+          <dl className="grid gap-4 sm:grid-cols-3">
+            {[
+              { label: "Earned", value: cod.earned, hint: "Net of returns and refunds" },
+              { label: "Paid by KACHI", value: cod.paid, hint: "In payouts whose KACHI part was recorded paid" },
+              { label: "Due from KACHI", value: cod.due, hint: "Still to pay" },
+            ].map((item) => (
+              <div key={item.label} className="rounded-lg bg-muted/50 p-4">
+                <dt className="text-xs text-muted-foreground">{item.label}</dt>
+                <dd className="mt-1 text-lg font-semibold">{formatMoney(item.value)}</dd>
+                <dd className="mt-1 text-xs text-muted-foreground">{item.hint}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
-      ))}
-    </dl>
+      )}
+    </div>
   );
 }

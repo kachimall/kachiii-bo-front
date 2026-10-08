@@ -126,3 +126,33 @@ export function formatOptions(options: Record<string, string> | string | null | 
 export function crumbName(crumb: { name: string } | string): string {
   return typeof crumb === "string" ? crumb : crumb.name;
 }
+
+/** Today's date in UAE time, YYYY-MM-DD (reports and the dashboard count UAE days). */
+export function uaeToday(): string {
+  return new Date(Date.now() + UAE_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/** A YYYY-MM-DD day moved by whole days. */
+export function addDays(day: string, days: number): string {
+  const date = new Date(`${day}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+/** "2026-10-08" -> "8 Oct 2026", without moving it across time zones. */
+export function formatDay(day: string | null | undefined): string {
+  if (!day) return "—";
+  const date = new Date(`${day}T00:00:00Z`);
+  return Number.isNaN(date.getTime())
+    ? day
+    : new Intl.DateTimeFormat("en-AE", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(date);
+}
+
+const countFormat = new Intl.NumberFormat("en-AE");
+
+/** 12345 -> "12,345". */
+export function formatCount(value: number | string | null | undefined): string {
+  if (value === null || value === undefined || value === "") return "—";
+  const number = Number(value);
+  return Number.isNaN(number) ? String(value) : countFormat.format(number);
+}

@@ -1,5 +1,14 @@
 import {
   BadgePercentIcon,
+  BanknoteIcon,
+  ChartColumnIcon,
+  FileChartColumnIcon,
+  FileTextIcon,
+  MailIcon,
+  MegaphoneIcon,
+  MessagesSquareIcon,
+  ScrollTextIcon,
+  StarIcon,
   BoxesIcon,
   FileSignatureIcon,
   FolderTreeIcon,
@@ -35,10 +44,24 @@ export interface NavGroup {
   items: NavItem[];
 }
 
+/** DashboardService::permissions(): staff holding any of these see at least one dashboard figure. */
+export const DASHBOARD_PERMISSIONS = [
+  "reports.view",
+  "orders.view",
+  "payouts.view",
+  "commissions.view",
+  "vendors.view",
+  "customers.view",
+];
+
 export const NAV: NavGroup[] = [
   {
     label: "General",
-    items: [{ href: "/", label: "Overview", icon: LayoutDashboardIcon }],
+    items: [
+      { href: "/", label: "Overview", icon: LayoutDashboardIcon },
+      { href: "/dashboard", label: "Dashboard", icon: ChartColumnIcon, permission: DASHBOARD_PERMISSIONS },
+      { href: "/reports", label: "Reports", icon: FileChartColumnIcon, permission: "reports.view" },
+    ],
   },
   {
     label: "Catalogue",
@@ -48,6 +71,7 @@ export const NAV: NavGroup[] = [
       { href: "/categories", label: "Categories", icon: FolderTreeIcon, permission: "products.view" },
       { href: "/brands", label: "Brands", icon: TagIcon, permission: "products.view" },
       { href: "/attributes", label: "Attributes", icon: ListChecksIcon, permission: "products.view" },
+      { href: "/reviews", label: "Reviews", icon: StarIcon, permission: "products.view" },
     ],
   },
   {
@@ -56,19 +80,25 @@ export const NAV: NavGroup[] = [
       { href: "/orders", label: "Orders", icon: ShoppingCartIcon, permission: "orders.view" },
       { href: "/returns", label: "Returns", icon: Undo2Icon, permission: "orders.view" },
       { href: "/vouchers", label: "Vouchers", icon: BadgePercentIcon, permission: "promotions.view" },
+      { href: "/ads", label: "Ads", icon: MegaphoneIcon, permission: "ads.view" },
     ],
   },
   {
     label: "Finance",
     items: [
       { href: "/refunds", label: "Refunds", icon: ReceiptIcon, permission: "payments.view" },
+      { href: "/cash-on-delivery", label: "Cash on delivery", icon: BanknoteIcon, permission: "payments.view" },
       { href: "/commission-rates", label: "Commission", icon: PercentIcon, permission: "commissions.view" },
       { href: "/payouts", label: "Payouts", icon: WalletIcon, permission: "payouts.view" },
     ],
   },
   {
     label: "Content",
-    items: [{ href: "/banners", label: "Banners", icon: ImagesIcon, permission: "content.view" }],
+    items: [
+      { href: "/banners", label: "Banners", icon: ImagesIcon, permission: "content.view" },
+      { href: "/pages", label: "Pages", icon: FileTextIcon, permission: "content.view" },
+      { href: "/email-templates", label: "Email templates", icon: MailIcon, permission: "content.view" },
+    ],
   },
   {
     label: "Marketplace",
@@ -77,6 +107,7 @@ export const NAV: NavGroup[] = [
       { href: "/stores", label: "Stores", icon: StoreIcon, permission: "vendors.view" },
       { href: "/vendor-agreements", label: "Vendor agreements", icon: FileSignatureIcon, permission: "content.view" },
       { href: "/buyers", label: "Buyers", icon: UsersIcon, permission: "customers.view" },
+      { href: "/conversations", label: "Messages", icon: MessagesSquareIcon, permission: "messages.view" },
     ],
   },
   {
@@ -85,6 +116,7 @@ export const NAV: NavGroup[] = [
       { href: "/staff", label: "Staff", icon: UserCogIcon, permission: "admins.manage" },
       { href: "/roles", label: "Roles", icon: ShieldCheckIcon, permission: "permissions.manage" },
       { href: "/settings", label: "Settings", icon: SettingsIcon, permission: "settings.view" },
+      { href: "/audit-log", label: "Audit log", icon: ScrollTextIcon, permission: "audit-logs.view" },
     ],
   },
 ];

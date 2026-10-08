@@ -1,6 +1,6 @@
 import { api } from "@/lib/api/client";
 import { imageBody, type ImageInput } from "@/lib/api/images";
-import type { Banner, BannerPlacement } from "@/types/api";
+import type { Banner, BannerPlacement, EmailPreview, EmailTemplate, EmailTemplateSummary, StaticPage } from "@/types/api";
 
 // Home banners (DECISIONS CN1). GET lists every banner, placement by placement, in shop order
 // (not paginated). A new banner goes last in its placement, switched off; it can be switched on
@@ -41,3 +41,25 @@ export const uploadBannerImage = (id: string, kind: BannerImageKind, image: Imag
 /** A switched-on banner keeps its desktop image (409). */
 export const deleteBannerImage = (id: string, kind: BannerImageKind) =>
   api<Banner>(`/admin/banners/${id}/images/${kind}`, { method: "DELETE" });
+
+// Email templates (DECISIONS CN2): content.view lists, shows and previews; content.manage saves or
+// resets. Plain text using only the email's placeholders, e.g. {order_number}; a body may put
+// {button} on a line of its own where the button goes.
+export const listEmailTemplates = () => api<EmailTemplateSummary[]>("/admin/email-templates");
+export const getEmailTemplate = (key: string) => api<EmailTemplate>(`/admin/email-templates/${key}`);
+/** Subject up to 200 characters, body up to 5,000. */
+export const saveEmailTemplate = (key: string, body: { subject: string; body: string }) =>
+  api<EmailTemplate>(`/admin/email-templates/${key}`, { method: "PUT", body });
+/** Puts the default wording back. */
+export const resetEmailTemplate = (key: string) => api<EmailTemplate>(`/admin/email-templates/${key}`, { method: "DELETE" });
+/** The email with each placeholder's sample; parts left out use the saved wording. */
+export const previewEmailTemplate = (key: string, body: { subject?: string; body?: string }) =>
+  api<EmailPreview>(`/admin/email-templates/${key}/preview`, { method: "POST", body });
+
+// Static pages (DECISIONS CN3): terms, privacy, returns policy and contact. The shop has a change
+// within five minutes.
+export const listPages = () => api<StaticPage[]>("/admin/pages");
+export const getPage = (key: string) => api<StaticPage>(`/admin/pages/${key}`);
+/** Title 3–120 characters, body Markdown up to 50,000. */
+export const savePage = (key: string, body: { title: string; body: string; is_published: boolean }) =>
+  api<StaticPage>(`/admin/pages/${key}`, { method: "PUT", body });

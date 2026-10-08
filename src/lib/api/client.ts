@@ -175,6 +175,23 @@ export async function openFile(path: string): Promise<void> {
   }
 }
 
+/** Downloads a file (e.g. a report's CSV) with the bearer token and saves it under the server's file name. */
+export async function downloadFile(path: string, query?: Query, fallbackName = "download"): Promise<void> {
+  const response = await send(path, { query });
+  if (!response.ok) {
+    await parse(response, {});
+  }
+  const blob = await response.blob();
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = match ? decodeURIComponent(match[1]) : fallbackName;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
 /** A readable message for any thrown value. */
 export function errorMessage(error: unknown): string {
   if (error instanceof ApiError) {

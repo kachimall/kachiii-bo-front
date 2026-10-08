@@ -3,10 +3,14 @@ import type { LoginResult, TokenResult, TwoFactorSetup, TwoFactorStatus, User } 
 
 export const DEVICE_NAME = "kachi-admin";
 
-export function login(email: string, password: string) {
+/**
+ * 422 for a wrong email or password (or a missing/refused Turnstile token, on turnstile_token);
+ * 429 while the account is locked after repeated failed sign-ins (DECISIONS R14), with how long.
+ */
+export function login(email: string, password: string, turnstileToken?: string | null) {
   return api<LoginResult>("/auth/login", {
     method: "POST",
-    body: { email, password, device_name: DEVICE_NAME },
+    body: { email, password, device_name: DEVICE_NAME, turnstile_token: turnstileToken || undefined },
     skipAuthHandling: true,
   });
 }

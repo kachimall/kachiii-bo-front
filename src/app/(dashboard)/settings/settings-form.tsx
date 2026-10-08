@@ -14,9 +14,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { useApi } from "@/hooks/use-api";
 import { getSettings, updateSettings } from "@/lib/api/settings";
-import { handleFormError } from "@/lib/forms";
+import { handleFormError, nullable } from "@/lib/forms";
 import { settingsSchema, type SettingsValues } from "@/lib/schemas/settings";
 import { useCan } from "@/store/auth";
 import type { Settings } from "@/types/api";
@@ -33,6 +34,15 @@ const FIELDS = [
   "delivery_fee_mode",
   "delivery_flat_fee",
   "free_delivery_min_total",
+  "online_payment_enabled",
+  "store_name",
+  "legal_name",
+  "address",
+  "trn",
+  "support_email",
+  "support_phone",
+  "vat_rate",
+  "email_reply_to",
 ] as const;
 
 function toForm(s: Settings): SettingsValues {
@@ -48,6 +58,15 @@ function toForm(s: Settings): SettingsValues {
     delivery_fee_mode: s.delivery_fee_mode,
     delivery_flat_fee: String(s.delivery_flat_fee),
     free_delivery_min_total: s.free_delivery_min_total === null ? "" : String(s.free_delivery_min_total),
+    online_payment_enabled: s.online_payment_enabled ?? true,
+    store_name: s.store_name ?? "",
+    legal_name: s.legal_name ?? "",
+    address: s.address ?? "",
+    trn: s.trn ?? "",
+    support_email: s.support_email ?? "",
+    support_phone: s.support_phone ?? "",
+    vat_rate: s.vat_rate ?? "5.00",
+    email_reply_to: s.email_reply_to ?? "",
   };
 }
 
@@ -60,7 +79,10 @@ export function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="Settings" description="Order rules, returns, cash on delivery and delivery fees for the whole marketplace." />
+      <PageHeader
+        title="Settings"
+        description="KACHI's details, payments, order rules, returns and delivery fees for the whole marketplace."
+      />
       <AsyncContent data={data} error={error} loading={loading} onRetry={reload}>
         {(settings) => <SettingsForm settings={settings} readOnly={!can("settings.manage")} onSaved={mutate} />}
       </AsyncContent>
@@ -88,6 +110,15 @@ function SettingsForm({ settings, readOnly, onSaved }: { settings: Settings; rea
         delivery_fee_mode: v.delivery_fee_mode,
         delivery_flat_fee: Number(v.delivery_flat_fee),
         free_delivery_min_total: v.free_delivery_min_total === "" ? null : Number(v.free_delivery_min_total),
+        online_payment_enabled: v.online_payment_enabled,
+        store_name: v.store_name,
+        legal_name: nullable(v.legal_name),
+        address: nullable(v.address),
+        trn: nullable(v.trn),
+        support_email: nullable(v.support_email),
+        support_phone: nullable(v.support_phone),
+        vat_rate: v.vat_rate,
+        email_reply_to: nullable(v.email_reply_to),
       });
       onSaved(saved);
       form.reset(toForm(saved));
@@ -100,6 +131,40 @@ function SettingsForm({ settings, readOnly, onSaved }: { settings: Settings; rea
   return (
     <form onSubmit={submit} noValidate className="grid gap-6">
       <fieldset disabled={readOnly || isSubmitting} className="grid gap-6 lg:grid-cols-2">
+        <Section title="KACHI's details" className="lg:col-span-2">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Trading name" htmlFor="st-store-name" error={errors.store_name?.message} hint="On receipts, and the sender name of KACHI's emails.">
+              <Input id="st-store-name" maxLength={80} aria-invalid={Boolean(errors.store_name)} {...form.register("store_name")} />
+            </Field>
+            <Field label="Legal name" htmlFor="st-legal-name" error={errors.legal_name?.message} hint="Optional, as on the trade licence.">
+              <Input id="st-legal-name" maxLength={150} aria-invalid={Boolean(errors.legal_name)} {...form.register("legal_name")} />
+            </Field>
+            <Field label="Address" htmlFor="st-address" error={errors.address?.message} hint="Optional, on receipts." className="sm:col-span-2">
+              <Textarea id="st-address" rows={2} maxLength={300} aria-invalid={Boolean(errors.address)} {...form.register("address")} />
+            </Field>
+            <Field label="TRN" htmlFor="st-trn" error={errors.trn?.message} hint="Tax registration number: 15 digits. Optional.">
+              <Input id="st-trn" inputMode="numeric" maxLength={15} aria-invalid={Boolean(errors.trn)} {...form.register("trn")} />
+            </Field>
+            <Field label="VAT rate (%)" htmlFor="st-vat" error={errors.vat_rate?.message} hint="In percent, up to two decimals, e.g. 5.">
+              <Input id="st-vat" inputMode="decimal" aria-invalid={Boolean(errors.vat_rate)} {...form.register("vat_rate")} />
+            </Field>
+            <Field label="Support email" htmlFor="st-support-email" error={errors.support_email?.message} hint="Optional, shown to buyers.">
+              <Input id="st-support-email" type="email" aria-invalid={Boolean(errors.support_email)} {...form.register("support_email")} />
+            </Field>
+            <Field label="Support phone" htmlFor="st-support-phone" error={errors.support_phone?.message} hint="Optional, a UAE number such as 0501234567.">
+              <Input id="st-support-phone" type="tel" aria-invalid={Boolean(errors.support_phone)} {...form.register("support_phone")} />
+            </Field>
+            <Field
+              label="Reply address for emails"
+              htmlFor="st-reply-to"
+              error={errors.email_reply_to?.message}
+              hint="Where replies to KACHI's emails go. Empty: replies go nowhere."
+            >
+              <Input id="st-reply-to" type="email" aria-invalid={Boolean(errors.email_reply_to)} {...form.register("email_reply_to")} />
+            </Field>
+          </div>
+        </Section>
+
         <Section title="Orders">
           <div className="grid gap-4">
             <Field
@@ -121,8 +186,25 @@ function SettingsForm({ settings, readOnly, onSaved }: { settings: Settings; rea
           </div>
         </Section>
 
-        <Section title="Cash on delivery">
+        <Section title="Payments">
           <div className="grid gap-4">
+            <Controller
+              control={form.control}
+              name="online_payment_enabled"
+              render={({ field }) => (
+                <div className="grid gap-1.5">
+                  <Label className="font-normal">
+                    <Switch checked={field.value} onCheckedChange={field.onChange} disabled={readOnly} />
+                    Buyers can pay online
+                  </Label>
+                  {errors.online_payment_enabled && (
+                    <p role="alert" className="text-xs text-destructive">
+                      {errors.online_payment_enabled.message}
+                    </p>
+                  )}
+                </div>
+              )}
+            />
             <Controller
               control={form.control}
               name="cash_on_delivery_enabled"

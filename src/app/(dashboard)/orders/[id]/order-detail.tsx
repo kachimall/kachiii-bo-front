@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { FileTextIcon, FlagIcon, PackageCheckIcon, RotateCwIcon, TruckIcon } from "lucide-react";
+import { BanknoteIcon, FileTextIcon, FlagIcon, PackageCheckIcon, RotateCwIcon, TruckIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { CourierUpdateDialog } from "@/components/common/courier-update-dialog";
 import { DetailList } from "@/components/common/detail-list";
 import { PageHeader } from "@/components/common/page-header";
 import { ReasonDialog } from "@/components/common/reason-dialog";
+import { RefundPaymentDialog } from "@/components/common/refund-payment-dialog";
 import { RestockDialog } from "@/components/common/restock-dialog";
 import { Section } from "@/components/common/section";
 import { AsyncContent } from "@/components/common/states";
@@ -53,8 +54,13 @@ function OrderView({ order, onChange, onReload }: { order: Purchase; onChange: (
   const [receiving, setReceiving] = useState<Shipment | null>(null);
   const [refunding, setRefunding] = useState(false);
   const [retrying, setRetrying] = useState<string | null>(null);
-  // Only an order paid online is refunded here; cash on delivery is refunded outside the platform.
-  const refundable = order.payment_method === "online" && order.payment_status === "paid";
+  const [paying, setPaying] = useState<Refund | null>(null);
+  // Paid online: refunded through the gateway. Cash on delivery: once the courier collected cash,
+  // KACHI owes it back and records paying it (FN9). The API checks what is left either way.
+  const refundable =
+    order.payment_method === "online"
+      ? order.payment_status === "paid"
+      : order.packages.some((pkg) => pkg.cash_on_delivery?.status === "collected");
   const money = (amount: string | null | undefined) => formatMoney(amount, order.currency_code);
   const address = addressLines(order.shipping_address);
 
@@ -215,8 +221,13 @@ function OrderView({ order, onChange, onReload }: { order: Purchase; onChange: (
                       refund={refund}
                       money={money}
                       retrying={retrying === refund.id}
+                      onRecordPayment={
+                        can("refunds.manage") && refund.payment_method === "cash_on_delivery" && refund.status !== "succeeded"
+                          ? () => setPaying(refund)
+                          : undefined
+                      }
                       onRetry={
-                        can("refunds.manage") && refund.status === "failed"
+                        can("refunds.manage") && refund.status === "failed" && refund.payment_method !== "cash_on_delivery"
                           ? async () => {
                               setRetrying(refund.id);
                               if (await runAction(() => retryRefund(refund.id), "Refund tried again.")) onReload();
@@ -353,6 +364,7 @@ function OrderView({ order, onChange, onReload }: { order: Purchase; onChange: (
         }}
       />
 
+      <RefundPaymentDialog refund={paying} onOpenChange={(open) => !open && setPaying(null)} onRecorded={() => onReload()} />
       <RefundDialog
         order={order}
         open={refunding}
@@ -398,17 +410,23 @@ function RefundRow({
   money,
   retrying,
   onRetry,
+  onRecordPayment,
 }: {
   refund: Refund;
   money: (a: string) => string;
   retrying: boolean;
   onRetry?: () => void;
+  onRecordPayment?: () => void;
 }) {
   return (
     <TableRow>
       <TableCell className="pl-5 whitespace-nowrap">{formatDateTime(refund.created_at)}</TableCell>
       <TableCell>
-        <StatusBadge status={refund.status} />
+        <StatusBadge
+          status={refund.status}
+          label={refund.payment_method === "cash_on_delivery" && refund.status !== "succeeded" ? "Owed in cash" : undefined}
+        />
+        {refund.reference && <span className="mt-1 block font-mono text-xs text-muted-foreground">{refund.reference}</span>}
       </TableCell>
       <TableCell className="max-w-64">
         <span className="block truncate" title={refund.reason}>
@@ -423,6 +441,11 @@ function RefundRow({
         {onRetry && (
           <Button variant="outline" size="xs" onClick={onRetry} disabled={retrying}>
             <RotateCwIcon className={retrying ? "animate-spin" : undefined} /> Retry
+          </Button>
+        )}
+        {onRecordPayment && (
+          <Button variant="outline" size="xs" onClick={onRecordPayment}>
+            <BanknoteIcon /> Record payment
           </Button>
         )}
       </TableCell>

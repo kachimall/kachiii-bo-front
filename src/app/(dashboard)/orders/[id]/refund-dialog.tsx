@@ -16,7 +16,10 @@ const AMOUNT = /^\d{1,7}(\.\d{1,2})?$/;
 
 type Errors = Partial<Record<keyof RefundInput | "form", string>>;
 
-/** Refunds part of an order paid online (RefundController::store). */
+/**
+ * Refunds part of a paid order (RefundController::store): through the gateway when paid online, or
+ * owed in cash for cash on delivery, which KACHI pays back itself and then records (FN9).
+ */
 export function RefundDialog({
   order,
   open,
@@ -88,8 +91,10 @@ function RefundForm({
       <DialogHeader>
         <DialogTitle>Issue a refund</DialogTitle>
         <DialogDescription>
-          Paid back to the buyer&apos;s card through the gateway, up to what is left of the payment. The buyer sees the
-          reason after “Refunded by KACHI:”.
+          {order.payment_method === "cash_on_delivery"
+            ? "Owed back to the buyer, up to the cash the courier collected. KACHI pays it back itself, then records the payment on the refund."
+            : "Paid back to the buyer's card through the gateway, up to what is left of the payment."}{" "}
+          The buyer sees the reason after “Refunded by KACHI:”.
         </DialogDescription>
       </DialogHeader>
       <Field label={`Amount (${order.currency_code})`} htmlFor="refund-amount" error={errors.amount}>

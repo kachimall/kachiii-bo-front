@@ -109,7 +109,8 @@ export type BannerStatus = "off" | "scheduled" | "live" | "ended";
 /** A sale (a delivered package), items sent back, or a refund charged to the store. */
 export type LedgerEntryType = "sale" | "return" | "refund";
 /** "pending" during the return period (payout_hold_days after delivery), then "available". */
-export type LedgerEntryStatus = "pending" | "available";
+/** "pending" during the return period, then "available", then "released" once in a payout. */
+export type LedgerEntryStatus = "pending" | "available" | "released";
 
 /**
  * A variant's option values. The spec says string; the API sends an object such as
@@ -427,6 +428,8 @@ export interface Refund {
   order?: { id: Ulid; number: string };
   /** The store's order number, when one store's order is refunded. */
   store_order?: string | null;
+  /** "cash_on_delivery": KACHI pays it back itself, then records it with its own reference (FN9). */
+  payment_method?: PaymentMethod;
   /** null when nothing was earned yet. */
   charged_to?: RefundCharge | null;
   reference?: string | null;
@@ -658,6 +661,20 @@ export interface Settings {
   return_dispute_days: number;
   /** Read-only here: changed at PATCH /admin/payout-settings (payouts.manage). */
   payout_hold_days?: number;
+  /** KACHI's trading name, on receipts and as its emails' sender. */
+  store_name: string;
+  legal_name: string | null;
+  address: string | null;
+  /** Tax registration number: 15 digits. */
+  trn: string | null;
+  support_email: string | null;
+  support_phone: string | null;
+  /** In percent ("5.00"). */
+  vat_rate: string;
+  /** At least one of online payment and cash on delivery stays on. */
+  online_payment_enabled: boolean;
+  /** Where replies to KACHI's emails go; null for nowhere. */
+  email_reply_to: string | null;
 }
 
 /** GET /admin/payout-settings. */
@@ -699,6 +716,12 @@ export interface EarningsSummary {
   pending: Money;
   /** Counts towards the next payout. */
   available: Money;
+  /** Already in payouts. */
+  released?: Money;
+  /** Not in a payout yet: pending + available. */
+  outstanding?: Money;
+  /** The store's share of its cash-on-delivery orders, which KACHI pays it outside the platform. */
+  cash_on_delivery?: { earned: Money; paid: Money; due: Money };
 }
 
 /** One change to what a store is owed (DECISIONS FN6); the ledger is append-only. */
@@ -714,6 +737,8 @@ export interface LedgerEntry {
   commission: Money;
   available_at: IsoDate;
   status: LedgerEntryStatus;
+  /** The payout it was released in. */
+  payout_number?: string | null;
   created_at: IsoDate | null;
 }
 
@@ -722,4 +747,219 @@ export interface CommissionRates {
   default: string;
   categories: { id: Ulid; name: string; rate: string }[];
   vendors: { id: Ulid; business_name: string; store: string | null; rate: string }[];
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard & reports (DECISIONS RP1–RP3)
+// ---------------------------------------------------------------------------
+
+/** GET /admin/dashboard, over UAE days. A figure is null for staff who cannot view its section. */
+export interface Dashboard {
+  from: string;
+  to: string;
+  /** The sales report's totals. */
+  sales: { orders: number; units: number; sales: Money; discounts: Money; net_sales: Money } | null;
+  /** Checkouts placed, by how they pay, and the stores' orders in them by where each one is now. */
+  orders: { placed: number; online: number; cash_on_delivery: number; store_orders: Record<string, number> } | null;
+  /** Packages by what the courier last reported; awaiting_pickup: not with the courier yet. */
+  deliveries: Record<string, number> | null;
+  /** The payouts report's totals. */
+  settlements: Record<string, string | number | null> | null;
+  /** The commissions report's totals. */
+  commissions: { on_sales: Money; on_returns: Money; net: Money } | null;
+  vendors: { active: number; selling: number; approved: number; to_review: number } | null;
+  buyers: { registered: number; new: number; ordering: number } | null;
+}
+
+export type ReportKey = "sales" | "commissions" | "best-sellers" | "payouts" | "vouchers" | "ad-sales" | "cash-on-delivery";
+
+/** GET /admin/reports/{report}: rows keyed by the columns' keys. */
+export interface Report {
+  report: ReportKey;
+  name: string;
+  from: string;
+  to: string;
+  group_by?: string;
+  limit?: number;
+  columns: { key: string; heading: string }[];
+  rows: Record<string, string | number | null>[];
+  /** null for reports whose columns cannot be added up. */
+  totals: Record<string, string | number | null> | null;
+}
+
+// ---------------------------------------------------------------------------
+// Audit log (DECISIONS AL1)
+// ---------------------------------------------------------------------------
+
+export interface AuditLogEntry {
+  id: number;
+  log: string | null;
+  /** e.g. "auth.login", "refund.kachi_paid". */
+  event: string;
+  /** null for what the platform did by itself. */
+  by: { id: Ulid; name: string; email: string } | null;
+  /** id is null once the record no longer exists. */
+  subject: { type: string; id: string | number | null } | null;
+  ip: string | null;
+  user_agent: string | null;
+  request_id: string | null;
+  /** What the action recorded with it: a reason, an amount, a reference. */
+  details: Record<string, unknown> | null;
+  /** A record's changed fields: their new values and the old ones. */
+  changes: Record<string, unknown> | null;
+  created_at: IsoDate;
+}
+
+// ---------------------------------------------------------------------------
+// Reviews & messages (DECISIONS RV1, MS1–MS3)
+// ---------------------------------------------------------------------------
+
+export interface Review {
+  id: Ulid;
+  rating: number;
+  comment: string | null;
+  photo_urls: string[];
+  /** The buyer's first name and last initial, e.g. "Sarah L.". */
+  author: string;
+  /** What they bought, e.g. "Red / M". */
+  variant: string | null;
+  reply: { text: string; replied_at: IsoDate } | null;
+  created_at: IsoDate;
+  product: { id: Ulid; name: string };
+  hidden: boolean;
+  hidden_reason: string | null;
+}
+
+export type MessageSender = "buyer" | "store";
+
+export interface Message {
+  id: Ulid;
+  sender: MessageSender;
+  /** "welcome" or "away" when the store's settings sent it by themselves. */
+  auto_reply: string | null;
+  body: string | null;
+  /** Portal paths of its photos (WebP); they need the bearer token. */
+  photos: string[];
+  hidden: boolean;
+  hidden_reason: string | null;
+  sent_at: IsoDate;
+}
+
+export interface Conversation {
+  id: Ulid;
+  store: { id: Ulid; name: string; slug: string; logo_url: string | null };
+  buyer: { id: Ulid; name: string };
+  last_message: Message | null;
+  last_message_at: IsoDate | null;
+}
+
+// ---------------------------------------------------------------------------
+// Content: email templates and static pages (DECISIONS CN2, CN3)
+// ---------------------------------------------------------------------------
+
+export interface EmailTemplateSummary {
+  key: string;
+  name: string;
+  /** Who gets it, e.g. "buyer" or "vendor". */
+  recipient: string;
+  subject: string;
+  /** Staff changed its wording. */
+  customized: boolean;
+  updated_at: IsoDate | null;
+}
+
+export interface EmailTemplate extends EmailTemplateSummary {
+  body: string;
+  /** Its button's label (not editable); null for an email without one. */
+  button: string | null;
+  default: { subject: string; body: string };
+  placeholders: { name: string; description: string; sample: string }[];
+}
+
+export interface EmailPreview {
+  subject: string;
+  /** The email as mail apps show it. */
+  html: string;
+}
+
+export interface StaticPage {
+  /** "terms", "privacy", "returns" or "contact". */
+  key: string;
+  title: string;
+  /** Markdown. */
+  body: string;
+  is_published: boolean;
+  updated_at: IsoDate | null;
+}
+
+// ---------------------------------------------------------------------------
+// Ads (DECISIONS AD1–AD3)
+// ---------------------------------------------------------------------------
+
+export type AdPlacementKey = "home" | "category" | "search";
+export type AdStatus = "pending_approval" | "approved" | "live" | "ended" | "rejected" | "cancelled" | "expired" | "stopped";
+
+export interface AdPlacementTerms {
+  key: AdPlacementKey;
+  name: string;
+  weekly_price: Money;
+  /** How many of its live ads show at once, taking turns (1–20). */
+  shown_at_once: number;
+  /** Off: no new bookings; live ads run on. */
+  is_active: boolean;
+}
+
+export interface Ad {
+  id: Ulid;
+  number: string;
+  status: AdStatus;
+  placement: { key: AdPlacementKey; name: string };
+  /** null for an ad for the whole store. */
+  product: { id: Ulid; name: string } | null;
+  store: { id: Ulid; name: string; slug: string };
+  weeks: number;
+  amount: Money;
+  currency_code: string;
+  approved_at: IsoDate | null;
+  pay_by: IsoDate | null;
+  rejected_at: IsoDate | null;
+  rejection_reason: string | null;
+  cancelled_at: IsoDate | null;
+  /** The latest attempt to pay for it; null before the first. */
+  payment: { id: Ulid; status: PaymentAttemptStatus; redirect_url: string | null; failure_reason: string | null } | null;
+  paid_at: IsoDate | null;
+  starts_at: IsoDate | null;
+  ends_at: IsoDate | null;
+  stopped_at: IsoDate | null;
+  stop_reason: string | null;
+  ended_at: IsoDate | null;
+  views: number;
+  clicks: number;
+  created_at: IsoDate;
+}
+
+// ---------------------------------------------------------------------------
+// Cash on delivery from Zajel (DECISIONS FN8)
+// ---------------------------------------------------------------------------
+
+export interface CodPackage {
+  id: Ulid;
+  order_number: string;
+  waybill_number: string | null;
+  /** What the courier collected at the door. */
+  cod_amount: Money;
+  collected_at: IsoDate | null;
+}
+
+export interface CodRemittance {
+  id: Ulid;
+  reference: string;
+  remitted_at: IsoDate;
+  /** The cash its packages collected, what reached KACHI, and what Zajel kept (its fee). */
+  collected_total: Money;
+  amount: Money;
+  fee: Money;
+  note: string | null;
+  packages?: CodPackage[];
+  created_at: IsoDate | null;
 }

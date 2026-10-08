@@ -8,6 +8,7 @@ import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { TURNSTILE_SITE_KEY, Turnstile } from "@/components/common/turnstile";
 import { NOT_STAFF_MESSAGE } from "@/components/layout/auth-guard";
 import { login, logout, twoFactorChallenge } from "@/lib/api/auth";
 import { ApiError, errorMessage } from "@/lib/api/client";
@@ -98,23 +99,44 @@ function CredentialsStep({
 }) {
   const form = useForm<LoginValues>({ resolver: zodResolver(loginSchema), defaultValues: { email: "", password: "" } });
   const { errors, isSubmitting } = form.formState;
+  // Bumped to remount the widget for a fresh token.
+  const [turnstileRun, setTurnstileRun] = useState(0);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileError, setTurnstileError] = useState<string | null>(null);
 
   const submit = form.handleSubmit(async (values) => {
     onError(null);
+    setTurnstileError(null);
+    if (TURNSTILE_SITE_KEY && !turnstileToken) {
+      setTurnstileError("Confirm you are not a robot, then sign in.");
+      return;
+    }
     try {
-      const result = await login(values.email, values.password);
+      const result = await login(values.email, values.password, turnstileToken);
       if ("two_factor" in result) onChallenge(result.challenge_token);
       else await onDone(result);
     } catch (error) {
+      // Cloudflare accepts each token once: a failed attempt needs a new one.
+      if (TURNSTILE_SITE_KEY) {
+        setTurnstileToken(null);
+        setTurnstileRun((n) => n + 1);
+      }
       if (error instanceof ApiError && error.status === 422) {
         const email = error.firstError("email");
         const password = error.firstError("password");
+        const bot = error.firstError("turnstile_token");
         if (email) form.setError("email", { message: email });
         if (password) form.setError("password", { message: password });
-        if (!email && !password) onError(error.message);
+        if (bot) setTurnstileError(bot);
+        if (!email && !password && !bot) onError(error.message);
       } else {
-        // 403: inactive or suspended account; 429: too many attempts.
-        onError(errorMessage(error));
+        // 403: inactive or suspended account. 429: the account is locked after repeated failed
+        // sign-ins (the message says for how long), or too many attempts from this address.
+        onError(
+          error instanceof ApiError && error.status === 429 && error.message === "Too Many Attempts."
+            ? "Too many sign-in attempts. Wait a minute and try again."
+            : errorMessage(error),
+        );
       }
     }
   });
@@ -144,6 +166,16 @@ function CredentialsStep({
           {...form.register("password")}
         />
       </Field>
+      {TURNSTILE_SITE_KEY && (
+        <div className="grid gap-1.5">
+          <Turnstile key={turnstileRun} onToken={setTurnstileToken} />
+          {turnstileError && (
+            <p role="alert" className="text-xs text-destructive">
+              {turnstileError}
+            </p>
+          )}
+        </div>
+      )}
       <Button type="submit" size="lg" disabled={isSubmitting}>
         {isSubmitting && <Loader2Icon className="animate-spin" />}
         Sign in
