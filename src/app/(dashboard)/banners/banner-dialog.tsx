@@ -56,7 +56,7 @@ export const PLACEMENT_LABELS: Record<BannerPlacement, string> = {
 const IMAGE_RULES: Record<BannerImageKind, { label: string; hint: string }> = {
   desktop: {
     label: "Desktop image",
-    hint: "JPG, PNG or WebP, up to 5 MB, at least 1200 × 400 px (at most 5000 px). Needed before the banner can go live.",
+    hint: "JPG, PNG or WebP, up to 5 MB, at least 1200 × 400 px (at most 5000 px). Use a picture without text: the shop writes the headline, subheadline and button over it. Needed before the banner can go live.",
   },
   mobile: {
     label: "Mobile image (optional)",
@@ -207,7 +207,7 @@ function BannerForm({
           <Input id="bn-alt" maxLength={150} aria-invalid={Boolean(errors.alt_text)} {...form.register("alt_text")} />
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Headline" htmlFor="bn-headline" error={errors.headline?.message} hint="Optional.">
+          <Field label="Headline" htmlFor="bn-headline" error={errors.headline?.message} hint="Written over the picture in the shop. Optional.">
             <Input id="bn-headline" maxLength={100} aria-invalid={Boolean(errors.headline)} {...form.register("headline")} />
           </Field>
           <Field label="Button label" htmlFor="bn-button" error={errors.button_label?.message} hint="Optional, e.g. Shop now.">
